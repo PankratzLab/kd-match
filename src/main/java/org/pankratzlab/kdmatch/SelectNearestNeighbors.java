@@ -88,6 +88,9 @@ public class SelectNearestNeighbors {
     String[] headerB = Files.lines(inputFileBarns).findFirst().get().toString().trim().split("\t");
     if (Arrays.equals(headerA, headerB)) {
 
+      // Could instead use a Map (factor[i.e phenograph_cluster] -> tree) to build individual trees
+      // split within each cluster.
+      // Similar for when querying
       KDTree<Sample> kd = new KDTree<SelectNearestNeighbors.Sample>(headerA.length - 1);
       log.info("Assuming 1 ID column and " + (headerA.length - 1) + " data columns");
 
