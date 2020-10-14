@@ -58,8 +58,11 @@ public class SelectNearestNeighbors {
                                                       int numToSelect) {
     ResultHeap<Sample> heap = selectFromTree(tree, line, numToSelect);
     List<String> results = new ArrayList<>();
-    results.addAll(Arrays.asList(line));
     // The case to be matched
+    results.addAll(Arrays.asList(line));
+
+    // The controls that were matched
+
     while (heap.size() > 0) {
       Sample control = heap.removeMax();
       results.add(control.ID);
@@ -102,16 +105,7 @@ public class SelectNearestNeighbors {
       new File(ouputDir.toString()).mkdirs();
       String output = ouputDir + "test.matchkd.txt";
       PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
-      StringJoiner header = new StringJoiner("\t");
-      for (String h : headerA) {
-        header.add(h);
-      }
-      for (int i = 0; i < numToSelect; i++) {
-        for (int j = 0; j < headerB.length; j++) {
-          header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
-        }
-      }
-      writer.println(header);
+      addHeader(numToSelect, headerA, headerB, writer);
       log.info("output file: " + output);
       log.info("selecting and reporting nearest neighbors for  " + inputFileAnchor.toString());
       Files.lines(inputFileAnchor).map(l -> l.split("\t")).skip(1)
@@ -123,6 +117,19 @@ public class SelectNearestNeighbors {
       log.severe("mismatched file headers");
     }
 
+  }
+
+  static void addHeader(int numToSelect, String[] headerA, String[] headerB, PrintWriter writer) {
+    StringJoiner header = new StringJoiner("\t");
+    for (String h : headerA) {
+      header.add(h);
+    }
+    for (int i = 0; i < numToSelect; i++) {
+      for (int j = 0; j < headerB.length; j++) {
+        header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
+      }
+    }
+    writer.println(header);
   }
 
   public static void main(String[] args) {
