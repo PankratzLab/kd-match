@@ -83,6 +83,20 @@ public class SelectNearestNeighbors {
 
   }
 
+  private static void addHeader(int numToSelect, String[] headerA, String[] headerB,
+                                PrintWriter writer) {
+    StringJoiner header = new StringJoiner("\t");
+    for (String h : headerA) {
+      header.add(h);
+    }
+    for (int i = 0; i < numToSelect; i++) {
+      for (int j = 0; j < headerB.length; j++) {
+        header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
+      }
+    }
+    writer.println(header);
+  }
+
   private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
                           int numToSelect) throws IOException {
 
@@ -117,19 +131,6 @@ public class SelectNearestNeighbors {
       log.severe("mismatched file headers");
     }
 
-  }
-
-  static void addHeader(int numToSelect, String[] headerA, String[] headerB, PrintWriter writer) {
-    StringJoiner header = new StringJoiner("\t");
-    for (String h : headerA) {
-      header.add(h);
-    }
-    for (int i = 0; i < numToSelect; i++) {
-      for (int j = 0; j < headerB.length; j++) {
-        header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
-      }
-    }
-    writer.println(header);
   }
 
   public static void main(String[] args) {
