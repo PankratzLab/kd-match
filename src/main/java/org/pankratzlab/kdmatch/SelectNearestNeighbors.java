@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.logging.Logger;
@@ -58,10 +59,15 @@ public class SelectNearestNeighbors {
                                                       int numToSelect) {
     ResultHeap<Sample> heap = selectFromTree(tree, line, numToSelect);
     List<String> results = new ArrayList<>();
+    results.addAll(Arrays.asList(line));
     // The case to be matched
-    results.add(line[0]);
     while (heap.size() > 0) {
-      results.add(heap.removeMax().ID);
+      Sample control = heap.removeMax();
+      results.add(control.ID);
+      for (int i = 0; i < control.dim.length; i++) {
+        results.add(Double.toString(control.dim[i]));
+
+      }
     }
 
     return results;
@@ -79,8 +85,8 @@ public class SelectNearestNeighbors {
                           int numToSelect) throws IOException {
 
     Logger log = Logger.getAnonymousLogger();
-    String[] headerA = Files.lines(inputFileAnchor).findFirst().toString().trim().split("\t");
-    String[] headerB = Files.lines(inputFileBarns).findFirst().toString().trim().split("\t");
+    String[] headerA = Files.lines(inputFileAnchor).findFirst().get().toString().trim().split("\t");
+    String[] headerB = Files.lines(inputFileBarns).findFirst().get().toString().trim().split("\t");
     if (Arrays.equals(headerA, headerB)) {
 
       KDTree<Sample> kd = new KDTree<SelectNearestNeighbors.Sample>(headerA.length - 1);
@@ -95,10 +101,15 @@ public class SelectNearestNeighbors {
       String output = ouputDir + "test.matchkd.txt";
       PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
       StringJoiner header = new StringJoiner("\t");
-      header.add("anchor");
-      for (int i = 0; i < numToSelect; i++) {
-        header.add("barnacle_ID_" + (i + 1));
+      for (String h : headerA) {
+        header.add(h);
       }
+      for (int i = 0; i < numToSelect; i++) {
+        for (int j = 0; j < headerB.length; j++) {
+          header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
+        }
+      }
+      writer.println(header);
       log.info("output file: " + output);
       log.info("selecting and reporting nearest neighbors for  " + inputFileAnchor.toString());
       Files.lines(inputFileAnchor).map(l -> l.split("\t")).skip(1)
