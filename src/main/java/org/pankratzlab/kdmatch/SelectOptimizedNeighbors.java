@@ -85,7 +85,7 @@ public class SelectOptimizedNeighbors {
     }
 
     private double getDistanceFrom(Sample other) {
-      return getEuclidDistance(sample.dim, other.dim);
+      return Utils.getEuclidDistance(sample.dim, other.dim);
     }
 
   }
@@ -128,18 +128,6 @@ public class SelectOptimizedNeighbors {
     return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
   }
 
-  /**
-   * 
-   */
-  private static double getEuclidDistance(double[] p1, double[] p2) {
-    double sum = 0;
-    for (int i = 0; i < p1.length; i++) {
-      final double dp = p1[i] - p2[i];
-      sum += dp * dp;
-    }
-    return Math.sqrt(sum);
-  }
-
   private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
                           int initialNumSelect, int finalNumSelect) throws IOException {
 
@@ -156,14 +144,6 @@ public class SelectOptimizedNeighbors {
       Files.lines(inputFileBarns).map(l -> l.split("\t")).skip(1).forEach(a -> addToTree(kd, a));
       log.info("finished building tree from " + inputFileBarns.toString());
 
-      new File(ouputDir.toString()).mkdirs();
-      String output = ouputDir + "test.match.NoDups.txt";
-      // PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
-      //
-      // addHeader(numToSelect, headerA, headerB, writer);
-      // writer.close();
-
-      log.info("output file: " + output);
       log.info("selecting nearest neighbors for  " + inputFileAnchor.toString());
 
       List<Match> matches = Files.lines(inputFileAnchor).map(l -> l.split("\t")).skip(1)
@@ -173,7 +153,7 @@ public class SelectOptimizedNeighbors {
       log.info("finished selecting nearest neighbors for  " + matches.size() + " anchors in "
                + inputFileAnchor.toString());
 
-      log.info("counting occurrences of each control and finding duplicated controls");
+      log.info("counting occurrences of each control and finding duplicates");
 
       Map<String, Long> duplicatedControlCounts = matches.stream().map(m -> m.matches)
                                                          .flatMap(List::stream)
@@ -205,13 +185,17 @@ public class SelectOptimizedNeighbors {
                                                                    .filter(distinctByKey(c -> c.getID()))
                                                                    .collect(Collectors.toList());
 
-      log.info(allDuplicatedcontrols.size() + " total controls to optimize");
+      log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
 
       List<Match> optimizedMatches = new ArrayList<>(baselineDuplicateMatches.size());
       baselineDuplicateMatches.stream().map(d -> new Match(d.sample, new ArrayList<>()))
                               .forEachOrdered(optimizedMatches::add);
 
+      log.info("Selecting optimal and removing duplicates");
+
       for (int i = 0; i < finalNumSelect; i++) {
+        log.info("Selecting round number " + i + " for total matches:"
+                 + baselineDuplicateMatches.size());
 
         double[][] costMatrix = new double[baselineDuplicateMatches.size()][allDuplicatedcontrols.size()];
 
@@ -228,10 +212,8 @@ public class SelectOptimizedNeighbors {
           }
           row++;
         }
-        log.info("Selecting optimal set from duplicated controls");
         HungarianAlgorithm hg = new HungarianAlgorithm(costMatrix);
         int[] selections = hg.execute();
-        log.info("Selecting round number " + i + " for total matches:" + selections.length);
 
         Set<String> toRemove = new HashSet<>();
         for (int j = 0; j < selections.length; j++) {
@@ -240,23 +222,27 @@ public class SelectOptimizedNeighbors {
         }
         allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
                                                      .collect(Collectors.toList());
-        log.info("New number of controls to select from " + allDuplicatedcontrols.size());
+        log.info("New number of controls to select from:" + allDuplicatedcontrols.size());
       }
 
-      // optimizedMatches
+      Map<String, Long> duplicatedControlCountOpts = optimizedMatches.stream().map(m -> m.matches)
+                                                                     .flatMap(List::stream)
+                                                                     .collect(Collectors.groupingBy(m -> m.getID(),
+                                                                                                    Collectors.counting()))
+                                                                     .entrySet().stream()
+                                                                     .filter(map -> map.getValue() > 1)
+                                                                     .collect(Collectors.toMap(map -> map.getKey(),
+                                                                                               map -> map.getValue()));
+      log.info(duplicatedControlCountOpts.size() + " duplicates remain following optimization");
 
-      Map<String, Long> countsOpt = optimizedMatches.stream().map(m -> m.matches)
-                                                    .flatMap(List::stream)
-                                                    .collect(Collectors.groupingBy(m -> m.getID(),
-                                                                                   Collectors.counting()));
+      new File(ouputDir.toString()).mkdirs();
+      String output = ouputDir + "test.match.NoDups.txt";
+      // PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
+      //
+      // addHeader(numToSelect, headerA, headerB, writer);
+      // writer.close();
 
-      log.info("finding duplicated controls");
-
-      Map<String, Long> duplicatedControlCountOpts = countsOpt.entrySet().stream()
-                                                              .filter(map -> map.getValue() > 1)
-                                                              .collect(Collectors.toMap(map -> map.getKey(),
-                                                                                        map -> map.getValue()));
-      log.info(duplicatedControlCountOpts.size() + " duplicates remain");
+      log.info("output file: " + output);
 
     } else {
       log.severe("mismatched file headers");
@@ -280,7 +266,7 @@ public class SelectOptimizedNeighbors {
     // 1000017 -43.5160309060552 -49.3401376767763
     // 1000038 65.4590502813067 -63.8399147505082
     Path ouputDir = Paths.get(args[2]);
-    // Number of controls to select
+    // Number of controls to select initially (maybe 5X the final number needed)?
     int initialNumSelect = Integer.parseInt(args[3]);
 
     int finalNumSelect = Integer.parseInt(args[4]);
