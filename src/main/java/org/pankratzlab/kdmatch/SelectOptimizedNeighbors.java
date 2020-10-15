@@ -1,10 +1,15 @@
 package org.pankratzlab.kdmatch;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -12,6 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -50,6 +56,15 @@ public class SelectOptimizedNeighbors {
     // data for this sample (e.g holds PC1-10)
     private double[] dim;
 
+    private String getOutput() {
+      StringJoiner j = new StringJoiner("\t");
+      j.add(ID);
+      for (int i = 0; i < dim.length; i++) {
+        j.add(Double.toString(dim[i]));
+      }
+      return j.toString();
+    }
+
   }
 
   private static class Match {
@@ -86,6 +101,24 @@ public class SelectOptimizedNeighbors {
 
     private double getDistanceFrom(Sample other) {
       return Utils.getEuclidDistance(sample.dim, other.dim);
+    }
+
+    private String getFormattedResults(int numToSelect) {
+      StringJoiner results = new StringJoiner("\t");
+      // The case to be matched
+      results.add(sample.getOutput());
+
+      for (int i = 0; i < numToSelect; i++) {
+        Sample control = matches.get(i);
+        results.add(Double.toString(getDistanceFrom(control)));
+        results.add(control.ID);
+        for (int j = 0; j < control.dim.length; j++) {
+          results.add(Double.toString(control.dim[j]));
+        }
+      }
+
+      return results.toString();
+
     }
 
   }
@@ -126,6 +159,21 @@ public class SelectOptimizedNeighbors {
 
     Map<Object, Boolean> seen = new ConcurrentHashMap<>();
     return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
+  }
+
+  private static void addHeader(int numToSelect, String[] headerA, String[] headerB,
+                                PrintWriter writer) {
+    StringJoiner header = new StringJoiner("\t");
+    for (String h : headerA) {
+      header.add(h);
+    }
+    for (int i = 0; i < numToSelect; i++) {
+      header.add("barnacle_" + (i + 1) + "_distance");
+      for (int j = 0; j < headerB.length; j++) {
+        header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
+      }
+    }
+    writer.println(header);
   }
 
   private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
@@ -225,22 +273,28 @@ public class SelectOptimizedNeighbors {
         log.info("New number of controls to select from:" + allDuplicatedcontrols.size());
       }
 
-      Map<String, Long> duplicatedControlCountOpts = optimizedMatches.stream().map(m -> m.matches)
-                                                                     .flatMap(List::stream)
-                                                                     .collect(Collectors.groupingBy(m -> m.getID(),
-                                                                                                    Collectors.counting()))
-                                                                     .entrySet().stream()
-                                                                     .filter(map -> map.getValue() > 1)
-                                                                     .collect(Collectors.toMap(map -> map.getKey(),
-                                                                                               map -> map.getValue()));
-      log.info(duplicatedControlCountOpts.size() + " duplicates remain following optimization");
+      Map<String, Long> duplicatedControlCountPostOpts = optimizedMatches.stream()
+                                                                         .map(m -> m.matches)
+                                                                         .flatMap(List::stream)
+                                                                         .collect(Collectors.groupingBy(m -> m.getID(),
+                                                                                                        Collectors.counting()))
+                                                                         .entrySet().stream()
+                                                                         .filter(map -> map.getValue() > 1)
+                                                                         .collect(Collectors.toMap(map -> map.getKey(),
+                                                                                                   map -> map.getValue()));
+      log.info(duplicatedControlCountPostOpts.size() + " duplicates remain following optimization");
 
       new File(ouputDir.toString()).mkdirs();
       String output = ouputDir + "test.match.NoDups.txt";
-      // PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
+      PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
       //
-      // addHeader(numToSelect, headerA, headerB, writer);
-      // writer.close();
+
+      addHeader(finalNumSelect, headerA, headerB, writer);
+
+      baselineUniqueMatches.addAll(optimizedMatches);
+      baselineUniqueMatches.stream().map(m -> m.getFormattedResults(finalNumSelect))
+                           .forEach(s -> writer.println(s));
+      writer.close();
 
       log.info("output file: " + output);
 
@@ -273,7 +327,9 @@ public class SelectOptimizedNeighbors {
     // int finalNumNeeded = Integer.parseInt(args[3]);
 
     try {
+      Instant start = Instant.now();
       run(inputFileAnchor, inputFileBarns, ouputDir, initialNumSelect, finalNumSelect);
+      Logger.getAnonymousLogger().info(Duration.between(start, Instant.now()).toString());
     } catch (IOException e) {
       e.printStackTrace();
     }
