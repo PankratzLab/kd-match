@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.logging.Logger;
@@ -54,17 +55,41 @@ public class SelectNearestNeighbors {
 
   }
 
-  private static List<String> selectIDMatchesFromTree(KDTree<Sample> tree, String[] line,
-                                                      int numToSelect) {
+  /**
+   * 
+   */
+  private static double getEuclidDistance(double[] p1, double[] p2) {
+    double sum = 0;
+    for (int i = 0; i < p1.length; i++) {
+      final double dp = p1[i] - p2[i];
+      sum += dp * dp;
+    }
+    return Math.sqrt(sum);
+  }
+
+  private static List<Sample> getSelectionsForLine(KDTree<Sample> tree, String[] line,
+                                                   int numToSelect) {
     ResultHeap<Sample> heap = selectFromTree(tree, line, numToSelect);
+    List<Sample> results = new ArrayList<>();
+
+    // retrieve sample starting from farthest away (maybe could add a different method in ResultHeap
+    while (heap.size() > 0) {
+      results.add(heap.removeMax());
+    }
+    // reverse so first index is nearest
+    Collections.reverse(results);
+    return results;
+  }
+
+  private static List<String> getFormattedResults(KDTree<Sample> tree, String[] line,
+                                                  int numToSelect) {
     List<String> results = new ArrayList<>();
     // The case to be matched
     results.addAll(Arrays.asList(line));
-
-    // The controls that were matched
-
-    while (heap.size() > 0) {
-      Sample control = heap.removeMax();
+    double[] caseLoc = Arrays.stream(line).skip(1).mapToDouble(Double::parseDouble).toArray();
+    List<Sample> samples = getSelectionsForLine(tree, line, numToSelect);
+    for (Sample control : samples) {
+      results.add(Double.toString(getEuclidDistance(caseLoc, control.dim)));
       results.add(control.ID);
       for (int i = 0; i < control.dim.length; i++) {
         results.add(Double.toString(control.dim[i]));
@@ -78,7 +103,7 @@ public class SelectNearestNeighbors {
 
   private static void selectAndReportMatchesFromTree(KDTree<Sample> tree, String[] line,
                                                      int numToSelect, PrintWriter writer) {
-    List<String> matches = selectIDMatchesFromTree(tree, line, numToSelect);
+    List<String> matches = getFormattedResults(tree, line, numToSelect);
     writer.println(String.join("\t", matches));
 
   }
@@ -90,6 +115,7 @@ public class SelectNearestNeighbors {
       header.add(h);
     }
     for (int i = 0; i < numToSelect; i++) {
+      header.add("barnacle_" + (i + 1) + "_distance");
       for (int j = 0; j < headerB.length; j++) {
         header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
       }
@@ -117,7 +143,7 @@ public class SelectNearestNeighbors {
       log.info("finished building tree from " + inputFileBarns.toString());
 
       new File(ouputDir.toString()).mkdirs();
-      String output = ouputDir + "test.matchkd.txt";
+      String output = ouputDir + "test.match.allowDups.txt";
       PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
       addHeader(numToSelect, headerA, headerB, writer);
       log.info("output file: " + output);
@@ -136,7 +162,7 @@ public class SelectNearestNeighbors {
   public static void main(String[] args) {
 
     // Assumed that the input files are tab delimited with a header, first column is IDs and the
-    // remaining is what is to be matched on (e.g tsne1,tsne2).
+    // next columns are what is to be matched on (e.g tsne1,tsne2).
 
     Path inputFileAnchor = Paths.get(args[0]);
     Path inputFileBarns = Paths.get(args[1]);
