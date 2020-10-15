@@ -204,8 +204,6 @@ public class SelectOptimizedNeighbors {
                                                     .collect(Collectors.toList());
       log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
       log.info(baselineDuplicateMatches.size() + " selections are uniquely matched at baseline");
-      
-      
 
     } else {
       log.severe("mismatched file headers");
