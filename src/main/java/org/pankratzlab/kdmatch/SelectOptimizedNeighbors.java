@@ -114,10 +114,12 @@ public class SelectOptimizedNeighbors {
         Sample control = matches.get(i);
         results.add(Double.toString(getDistanceFrom(control)));
         results.add(control.ID);
-        for (int j = 0; j < control.dim.length; j++) {
+        for (int j = 0; j < sample.dim.length; j++) {
           results.add(Double.toString(control.dim[j]));
         }
+
       }
+      results.add(Boolean.toString(hungarian));
 
       return results.toString();
 
