@@ -133,8 +133,7 @@ public class SelectOptimizedNeighbors {
 
       log.info("building tree from " + inputFileBarns.toString());
 
-      Files.lines(inputFileBarns).map(l -> l.split("\t")).skip(483080)
-           .forEach(a -> addToTree(kd, a));
+      Files.lines(inputFileBarns).map(l -> l.split("\t")).skip(1).forEach(a -> addToTree(kd, a));
       log.info("finished building tree from " + inputFileBarns.toString());
 
       new File(ouputDir.toString()).mkdirs();
