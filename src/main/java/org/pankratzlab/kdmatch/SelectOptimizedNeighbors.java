@@ -8,8 +8,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -41,13 +43,6 @@ public class SelectOptimizedNeighbors {
       return ID;
     }
 
-    /**
-     * @return the dim
-     */
-    double[] getDim() {
-      return dim;
-    }
-
     private String ID;
     // data for this sample (e.g holds PC1-10)
     private double[] dim;
@@ -57,6 +52,7 @@ public class SelectOptimizedNeighbors {
   private static class Match {
     private Sample sample;
     private List<Sample> matches;
+    private Set<String> matchIds;
 
     /**
      * @param sample
@@ -66,10 +62,27 @@ public class SelectOptimizedNeighbors {
       super();
       this.sample = sample;
       this.matches = matches;
+      this.matchIds = new HashSet<>();
+    }
+
+    private List<Sample> getMatches() {
+      return matches;
+    }
+
+    private boolean hasMatch(String ID) {
+
+      if (matchIds.size() != matches.size()) {
+        matchIds.addAll(getMatchIDs());
+      }
+      return matchIds.contains(ID);
     }
 
     private List<String> getMatchIDs() {
       return matches.stream().map(s -> s.ID).collect(Collectors.toList());
+    }
+
+    private double getDistanceFrom(Sample other) {
+      return getEuclidDistance(sample.dim, other.dim);
     }
 
   }
@@ -105,15 +118,6 @@ public class SelectOptimizedNeighbors {
 
   }
 
-  private static ResultHeap<Sample> selectFromTree(KDTree<Sample> tree, String[] line,
-                                                   int numToSelect) {
-
-    Sample s = new Sample(line[0],
-                          Arrays.stream(line).skip(1).mapToDouble(Double::parseDouble).toArray());
-    return tree.getNearestNeighbors(s.dim, numToSelect);
-
-  }
-
   /**
    * 
    */
@@ -126,23 +130,8 @@ public class SelectOptimizedNeighbors {
     return Math.sqrt(sum);
   }
 
-  private static List<Sample> getSelectionsForLine(KDTree<Sample> tree, String[] line,
-                                                   int numToSelect) {
-    ResultHeap<Sample> heap = selectFromTree(tree, line, numToSelect);
-    List<Sample> results = new ArrayList<>();
-
-    // retrieve sample starting from farthest away (maybe could add a different method in
-    // ResultHeap
-    while (heap.size() > 0) {
-      results.add(heap.removeMax());
-    }
-    // reverse so first index is nearest
-    Collections.reverse(results);
-    return results;
-  }
-
   private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
-                          int numToSelect) throws IOException {
+                          int initialNumSelect, int finalNumSelect) throws IOException {
 
     Logger log = Logger.getAnonymousLogger();
     String[] headerA = Files.lines(inputFileAnchor).findFirst().get().toString().trim().split("\t");
@@ -170,7 +159,7 @@ public class SelectOptimizedNeighbors {
       log.info("selecting nearest neighbors for  " + inputFileAnchor.toString());
 
       List<Match> matches = Files.lines(inputFileAnchor).map(l -> l.split("\t")).skip(1)
-                                 .map(a -> getMatchFromTree(kd, a, numToSelect))
+                                 .map(a -> getMatchFromTree(kd, a, initialNumSelect))
                                  .collect(Collectors.toList());
 
       log.info("finished selecting nearest neighbors for  " + matches.size() + " anchors in "
@@ -203,16 +192,46 @@ public class SelectOptimizedNeighbors {
                                                     .collect(Collectors.toList());
       log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
       log.info(baselineDuplicateMatches.size() + " selections are duplicated at baseline");
-      
-      
-      log.info("building sub-graphs of duplicated controls");
-      
-      
 
+      List<Sample> allDuplicatedcontrols = baselineDuplicateMatches.stream()
+                                                                   .map(m -> m.getMatches())
+                                                                   .flatMap(mlist -> mlist.stream())
+                                                                   .collect(Collectors.toList());
 
-      // List<String>
+      log.info(allDuplicatedcontrols.size() + " total controls to optimize");
 
-      // double[][] costMatrix =new double[baselineDuplicateMatches.size()][];
+      List<Match> optimizedMatches = new ArrayList<>(baselineDuplicateMatches.size());
+      baselineDuplicateMatches.stream().map(d -> new Match(d.sample, new ArrayList<>()))
+                              .forEachOrdered(optimizedMatches::add);
+
+      for (int i = 0; i < finalNumSelect; i++) {
+
+        double[][] costMatrix = new double[baselineDuplicateMatches.size()][allDuplicatedcontrols.size()];
+
+        int row = 0;
+        for (Match match : baselineDuplicateMatches) {
+          int col = 0;
+          for (Sample sample : allDuplicatedcontrols) {
+            if (match.hasMatch(sample.ID)) {
+              costMatrix[row][col] = match.getDistanceFrom(sample);
+            } else {
+              costMatrix[row][col] = Double.MAX_VALUE;
+            }
+            col++;
+          }
+          row++;
+        }
+        log.info("Selecting optimal set from duplicated controls");
+        HungarianAlgorithm hg = new HungarianAlgorithm(costMatrix);
+        int[] selections = hg.execute();
+        log.info("Selecting round number " + i + " for total matches:" + selections.length);
+
+        Set<String> toRemove = new HashSet<>();
+        for (int j = 0; j < selections.length; j++) {
+          optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
+          toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
+        }
+      }
 
     } else {
       log.severe("mismatched file headers");
@@ -237,12 +256,13 @@ public class SelectOptimizedNeighbors {
     // 1000038 65.4590502813067 -63.8399147505082
     Path ouputDir = Paths.get(args[2]);
     // Number of controls to select
-    int numToSelect = Integer.parseInt(args[3]);
+    int initialNumSelect = Integer.parseInt(args[3]);
 
+    int finalNumSelect = Integer.parseInt(args[4]);
     // int finalNumNeeded = Integer.parseInt(args[3]);
 
     try {
-      run(inputFileAnchor, inputFileBarns, ouputDir, numToSelect);
+      run(inputFileAnchor, inputFileBarns, ouputDir, initialNumSelect, finalNumSelect);
     } catch (IOException e) {
       e.printStackTrace();
     }
