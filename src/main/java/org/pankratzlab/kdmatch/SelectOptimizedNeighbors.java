@@ -12,6 +12,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -118,6 +121,13 @@ public class SelectOptimizedNeighbors {
 
   }
 
+  // https://www.baeldung.com/java-streams-distinct-by
+  private static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+
+    Map<Object, Boolean> seen = new ConcurrentHashMap<>();
+    return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
+  }
+
   /**
    * 
    */
@@ -138,10 +148,8 @@ public class SelectOptimizedNeighbors {
     String[] headerB = Files.lines(inputFileBarns).findFirst().get().toString().trim().split("\t");
     if (Arrays.equals(headerA, headerB)) {
 
-      // Could instead use a Map (factor[i.e phenograph_cluster] -> tree) to build individual trees
-      // split within each cluster.
-      // Similar for when querying
-      KDTree<Sample> kd = new KDTree<Sample>(headerA.length - 1);
+      KDTree<Sample> kd = new KDTree<Sample>(headerA.length - 1);// dimension of the data to
+                                                                 // searched
       log.info("Assuming 1 ID column and " + (headerA.length - 1) + " data columns");
 
       log.info("building tree from " + inputFileBarns.toString());
@@ -165,18 +173,16 @@ public class SelectOptimizedNeighbors {
       log.info("finished selecting nearest neighbors for  " + matches.size() + " anchors in "
                + inputFileAnchor.toString());
 
-      log.info("counting occurrences of each control" + inputFileAnchor.toString());
+      log.info("counting occurrences of each control and finding duplicated controls");
 
-      Map<String, Long> counts = matches.stream().map(m -> m.matches).flatMap(List::stream)
-                                        .collect(Collectors.groupingBy(m -> m.getID(),
-                                                                       Collectors.counting()));
-
-      log.info("finding duplicated controls");
-
-      Map<String, Long> duplicatedControlCounts = counts.entrySet().stream()
-                                                        .filter(map -> map.getValue() > 1)
-                                                        .collect(Collectors.toMap(map -> map.getKey(),
-                                                                                  map -> map.getValue()));
+      Map<String, Long> duplicatedControlCounts = matches.stream().map(m -> m.matches)
+                                                         .flatMap(List::stream)
+                                                         .collect(Collectors.groupingBy(m -> m.getID(),
+                                                                                        Collectors.counting()))
+                                                         .entrySet().stream()
+                                                         .filter(map -> map.getValue() > 1)
+                                                         .collect(Collectors.toMap(map -> map.getKey(),
+                                                                                   map -> map.getValue()));
       log.info("found " + duplicatedControlCounts.size() + " duplicated controls");
 
       log.info("pruning selections that are uniquely matched at baseline");
@@ -196,6 +202,7 @@ public class SelectOptimizedNeighbors {
       List<Sample> allDuplicatedcontrols = baselineDuplicateMatches.stream()
                                                                    .map(m -> m.getMatches())
                                                                    .flatMap(mlist -> mlist.stream())
+                                                                   .filter(distinctByKey(c -> c.getID()))
                                                                    .collect(Collectors.toList());
 
       log.info(allDuplicatedcontrols.size() + " total controls to optimize");
@@ -231,7 +238,25 @@ public class SelectOptimizedNeighbors {
           optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
           toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
         }
+        allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
+                                                     .collect(Collectors.toList());
+        log.info("New number of controls to select from " + allDuplicatedcontrols.size());
       }
+
+      // optimizedMatches
+
+      Map<String, Long> countsOpt = optimizedMatches.stream().map(m -> m.matches)
+                                                    .flatMap(List::stream)
+                                                    .collect(Collectors.groupingBy(m -> m.getID(),
+                                                                                   Collectors.counting()));
+
+      log.info("finding duplicated controls");
+
+      Map<String, Long> duplicatedControlCountOpts = countsOpt.entrySet().stream()
+                                                              .filter(map -> map.getValue() > 1)
+                                                              .collect(Collectors.toMap(map -> map.getKey(),
+                                                                                        map -> map.getValue()));
+      log.info(duplicatedControlCountOpts.size() + " duplicates remain");
 
     } else {
       log.severe("mismatched file headers");
