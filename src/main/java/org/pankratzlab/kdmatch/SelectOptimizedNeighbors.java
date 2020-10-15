@@ -71,16 +71,18 @@ public class SelectOptimizedNeighbors {
     private Sample sample;
     private List<Sample> matches;
     private Set<String> matchIds;
+    private boolean hungarian;
 
     /**
      * @param sample
      * @param matches
      */
-    public Match(Sample sample, List<Sample> matches) {
+    public Match(Sample sample, List<Sample> matches, boolean hungarian) {
       super();
       this.sample = sample;
       this.matches = matches;
       this.matchIds = new HashSet<>();
+      this.hungarian = hungarian;
     }
 
     private List<Sample> getMatches() {
@@ -150,7 +152,7 @@ public class SelectOptimizedNeighbors {
 
     Sample s = new Sample(line[0],
                           Arrays.stream(line).skip(1).mapToDouble(Double::parseDouble).toArray());
-    return new Match(s, getMatches(tree.getNearestNeighbors(s.dim, numToSelect)));
+    return new Match(s, getMatches(tree.getNearestNeighbors(s.dim, numToSelect)), false);
 
   }
 
@@ -173,6 +175,7 @@ public class SelectOptimizedNeighbors {
         header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
       }
     }
+    header.add("hungarian_selection");
     writer.println(header);
   }
 
@@ -220,35 +223,35 @@ public class SelectOptimizedNeighbors {
                                                                .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
                                                  .collect(Collectors.toList());
 
-      List<Match> baselineDuplicateMatches = matches.stream()
-                                                    .filter(m -> m.getMatchIDs().stream()
-                                                                  .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
-                                                    .collect(Collectors.toList());
+      List<Match> baselineMatchesWithDuplicates = matches.stream()
+                                                         .filter(m -> m.getMatchIDs().stream()
+                                                                       .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
+                                                         .collect(Collectors.toList());
       log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
-      log.info(baselineDuplicateMatches.size() + " selections are duplicated at baseline");
+      log.info(baselineMatchesWithDuplicates.size() + " selections are duplicated at baseline");
 
-      List<Sample> allDuplicatedcontrols = baselineDuplicateMatches.stream()
-                                                                   .map(m -> m.getMatches())
-                                                                   .flatMap(mlist -> mlist.stream())
-                                                                   .filter(distinctByKey(c -> c.getID()))
-                                                                   .collect(Collectors.toList());
+      List<Sample> allDuplicatedcontrols = baselineMatchesWithDuplicates.stream()
+                                                                        .map(m -> m.getMatches())
+                                                                        .flatMap(mlist -> mlist.stream())
+                                                                        .filter(distinctByKey(c -> c.getID()))
+                                                                        .collect(Collectors.toList());
 
       log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
 
-      List<Match> optimizedMatches = new ArrayList<>(baselineDuplicateMatches.size());
-      baselineDuplicateMatches.stream().map(d -> new Match(d.sample, new ArrayList<>()))
-                              .forEachOrdered(optimizedMatches::add);
+      List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
+      baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>(), true))
+                                   .forEachOrdered(optimizedMatches::add);
 
       log.info("Selecting optimal and removing duplicates");
 
       for (int i = 0; i < finalNumSelect; i++) {
         log.info("Selecting round number " + i + " for total matches:"
-                 + baselineDuplicateMatches.size());
+                 + baselineMatchesWithDuplicates.size());
 
-        double[][] costMatrix = new double[baselineDuplicateMatches.size()][allDuplicatedcontrols.size()];
+        double[][] costMatrix = new double[baselineMatchesWithDuplicates.size()][allDuplicatedcontrols.size()];
 
         int row = 0;
-        for (Match match : baselineDuplicateMatches) {
+        for (Match match : baselineMatchesWithDuplicates) {
           int col = 0;
           for (Sample sample : allDuplicatedcontrols) {
             if (match.hasMatch(sample.ID)) {
