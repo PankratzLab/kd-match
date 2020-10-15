@@ -173,6 +173,8 @@ public class SelectOptimizedNeighbors {
     // Number of controls to select
     int numToSelect = Integer.parseInt(args[3]);
 
+    // int finalNumNeeded = Integer.parseInt(args[3]);
+
     try {
       run(inputFileAnchor, inputFileBarns, ouputDir, numToSelect);
     } catch (IOException e) {
