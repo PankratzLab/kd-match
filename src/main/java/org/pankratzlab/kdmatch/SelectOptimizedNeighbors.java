@@ -2,7 +2,6 @@ package org.pankratzlab.kdmatch;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -11,7 +10,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -53,6 +51,7 @@ public class SelectOptimizedNeighbors {
     private String ID;
     // data for this sample (e.g holds PC1-10)
     private double[] dim;
+
   }
 
   private static class Match {
@@ -185,25 +184,35 @@ public class SelectOptimizedNeighbors {
 
       log.info("finding duplicated controls");
 
-      Map<String, Long> duplicatedControls = counts.entrySet().stream()
-                                                   .filter(map -> map.getValue() > 1)
-                                                   .collect(Collectors.toMap(map -> map.getKey(),
-                                                                             map -> map.getValue()));
-      log.info("found " + duplicatedControls.size() + " duplicated controls");
+      Map<String, Long> duplicatedControlCounts = counts.entrySet().stream()
+                                                        .filter(map -> map.getValue() > 1)
+                                                        .collect(Collectors.toMap(map -> map.getKey(),
+                                                                                  map -> map.getValue()));
+      log.info("found " + duplicatedControlCounts.size() + " duplicated controls");
 
       log.info("pruning selections that are uniquely matched at baseline");
 
       List<Match> baselineUniqueMatches = matches.stream()
                                                  .filter(m -> m.getMatchIDs().stream()
-                                                               .noneMatch(s -> duplicatedControls.containsKey(s)))
+                                                               .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
                                                  .collect(Collectors.toList());
 
       List<Match> baselineDuplicateMatches = matches.stream()
                                                     .filter(m -> m.getMatchIDs().stream()
-                                                                  .anyMatch(s -> duplicatedControls.containsKey(s)))
+                                                                  .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
                                                     .collect(Collectors.toList());
       log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
-      log.info(baselineDuplicateMatches.size() + " selections are uniquely matched at baseline");
+      log.info(baselineDuplicateMatches.size() + " selections are duplicated at baseline");
+      
+      
+      log.info("building sub-graphs of duplicated controls");
+      
+      
+
+
+      // List<String>
+
+      // double[][] costMatrix =new double[baselineDuplicateMatches.size()][];
 
     } else {
       log.severe("mismatched file headers");
