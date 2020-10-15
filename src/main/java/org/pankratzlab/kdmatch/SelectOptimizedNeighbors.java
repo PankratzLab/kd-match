@@ -142,6 +142,7 @@ public class SelectOptimizedNeighbors {
       addHeader(numToSelect, headerA, headerB, writer);
       log.info("output file: " + output);
       log.info("selecting and reporting nearest neighbors for  " + inputFileAnchor.toString());
+
       Files.lines(inputFileAnchor).map(l -> l.split("\t")).skip(1)
            .forEach(a -> selectAndReportMatchesFromTree(kd, a, numToSelect, writer));
 
@@ -159,7 +160,15 @@ public class SelectOptimizedNeighbors {
     // next columns are what is to be matched on (e.g tsne1,tsne2).
 
     Path inputFileAnchor = Paths.get(args[0]);
+    // ex. anchors.trim.txt
+    // IID tsne1 tsne2
+    // 1000173 -43.5954364907359 5.31262265439833
+    // 1000891 -59.3878908623605 -74.3238388765456
     Path inputFileBarns = Paths.get(args[1]);
+    // ex. barns.trim.txt
+    // IID tsne1 tsne2
+    // 1000017 -43.5160309060552 -49.3401376767763
+    // 1000038 65.4590502813067 -63.8399147505082
     Path ouputDir = Paths.get(args[2]);
     // Number of controls to select
     int numToSelect = Integer.parseInt(args[3]);
