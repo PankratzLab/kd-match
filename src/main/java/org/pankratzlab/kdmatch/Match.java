@@ -20,16 +20,23 @@ public class Match {
    * @param sample
    * @param matches
    */
-  public Match(Sample sample, List<Sample> matches, boolean hungarian) {
+  public Match(Sample sample, List<Sample> matches) {
     super();
     this.sample = sample;
     this.matches = matches;
     this.matchIds = new HashSet<>();
-    this.hungarian = hungarian;
+    this.hungarian = false;
   }
 
   List<Sample> getMatches() {
     return matches;
+  }
+
+  /**
+   * @param hungarian the hungarian to set
+   */
+  void setHungarian(boolean hungarian) {
+    this.hungarian = hungarian;
   }
 
   boolean hasMatch(String ID) {

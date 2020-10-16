@@ -39,8 +39,7 @@ public class SelectOptimizedNeighbors {
 
   static Stream<Match> getNearestNeighborsForSamples(KDTree<Sample> tree, Stream<Sample> anchors,
                                                      int numToSelect) {
-    return anchors.map(a -> new Match(a, getMatches(tree.getNearestNeighbors(a.dim, numToSelect)),
-                                      false));
+    return anchors.map(a -> new Match(a, getMatches(tree.getNearestNeighbors(a.dim, numToSelect))));
 
   }
 
@@ -84,7 +83,7 @@ public class SelectOptimizedNeighbors {
     if (allDuplicatedcontrols.size() > 0) {
       // Holds matches post optimization
       List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
-      baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>(), true))
+      baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>()))
                                    .forEachOrdered(optimizedMatches::add);
 
       log.info("Selecting optimal matches and removing duplicates");
@@ -98,6 +97,14 @@ public class SelectOptimizedNeighbors {
         Set<String> toRemove = new HashSet<>();
         for (int j = 0; j < selections.length; j++) {
           optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
+
+          // Note if the order of controls has changed
+          if (!baselineMatchesWithDuplicates.get(j).matches.get(i).getID()
+                                                           .equals(allDuplicatedcontrols.get(selections[j])
+                                                                                        .getID())) {
+            optimizedMatches.get(j).setHungarian(true);
+
+          }
           toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
         }
         // Remove controls that have been selected in this round
