@@ -98,7 +98,7 @@ public class SelectOptimizedNeighbors {
         for (int j = 0; j < selections.length; j++) {
           optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
 
-          // Note if the order of controls has changed
+          // Note if the order of controls has changed for this matching
           if (!baselineMatchesWithDuplicates.get(j).matches.get(i).getID()
                                                            .equals(allDuplicatedcontrols.get(selections[j])
                                                                                         .getID())) {
