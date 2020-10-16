@@ -55,16 +55,18 @@ public class KDMatch {
                                                                                    getSampleStreamFromFile(inputFileAnchor),
                                                                                    initialNumSelect)
                                                     .collect(Collectors.toList());
-      String outputBase = ouputDir + "test.match.AllowDups.txt";
+      String outputBase = ouputDir + File.separator + "test.match.AllowDups.txt";
 
       log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "
                + outputBase);
       writeToFile(matches.stream(), outputBase, headerA, headerB, initialNumSelect);
 
-      String outputOpt = ouputDir + "test.match.optimized.txt";
+      String outputOpt = ouputDir + File.separator + "test.match.optimized.txt";
 
       // De-duplicating matches does not scale well at all with O(n3)-ish
 
+      log.info("reporting optimized baseline selection of " + finalNumSelect
+               + " nearest neighbors to " + outputOpt);
       writeToFile(SelectOptimizedNeighbors.optimizeDuplicates(matches, finalNumSelect, log),
                   outputOpt, headerA, headerB, finalNumSelect);
 
