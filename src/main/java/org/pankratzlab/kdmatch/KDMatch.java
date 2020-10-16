@@ -66,7 +66,7 @@ public class KDMatch {
       // De-duplicating matches does not scale well at all with O(n3)-ish
 
       writeToFile(SelectOptimizedNeighbors.optimizeDuplicates(matches, finalNumSelect, log),
-                  outputOpt, headerA, headerB, initialNumSelect);
+                  outputOpt, headerA, headerB, finalNumSelect);
 
     }
 
