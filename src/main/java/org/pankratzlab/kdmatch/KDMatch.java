@@ -2,6 +2,7 @@ package org.pankratzlab.kdmatch;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -16,6 +17,7 @@ import java.util.StringJoiner;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.GZIPOutputStream;
 
 public class KDMatch {
 
@@ -55,13 +57,13 @@ public class KDMatch {
                                                                                    getSampleStreamFromFile(inputFileAnchor),
                                                                                    initialNumSelect)
                                                     .collect(Collectors.toList());
-      String outputBase = ouputDir + File.separator + "test.match.AllowDups.txt";
+      String outputBase = ouputDir + File.separator + "test.match.AllowDups.txt.gz";
 
       log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "
                + outputBase);
       writeToFile(matches.stream(), outputBase, headerA, headerB, initialNumSelect);
 
-      String outputOpt = ouputDir + File.separator + "test.match.optimized.txt";
+      String outputOpt = ouputDir + File.separator + "test.match.optimized.txt.gz";
 
       // De-duplicating matches does not scale well at all with O(n3)-ish
 
@@ -82,7 +84,7 @@ public class KDMatch {
 
   private static void writeToFile(Stream<Match> matches, String output, String[] headerA,
                                   String[] headerB, int numToSelect) throws IOException {
-    PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
+    PrintWriter writer = new PrintWriter(new GZIPOutputStream(new FileOutputStream(output, false)));
     addHeader(numToSelect, headerA, headerB, writer);
 
     matches.map(m -> m.getFormattedResults(numToSelect)).forEach(s -> writer.println(s));
