@@ -27,7 +27,8 @@ public class KDMatch {
   // Methods:
   // 1. select k (k greater than final needed) nearest neighbors for all samples
   // 2. prune matches that are completely unique
-  // 3. For non-unique matches, use hungarian algorithm to allocate controls to minimize distance between cases and
+  // 3. For non-unique matches, use hungarian algorithm to allocate controls to minimize distance
+  // between cases and
   // controls
 
   // TODO. optimize duplicates within "communities" only (i.e. only within cases that share at least

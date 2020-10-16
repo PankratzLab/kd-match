@@ -58,37 +58,36 @@ public class SelectOptimizedNeighbors {
     log.info("pruning selections that are uniquely matched at baseline");
 
     // These matches do not share any controls with another case, so are done
-    List<Match> baselineUniqueMatches = matches.stream()
-                                               .filter(m -> m.getMatchIDs().stream()
-                                                             .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
-                                               .collect(Collectors.toList());
+    List<Match> uniqueMatches = matches.stream()
+                                       .filter(m -> m.getMatchIDs().stream()
+                                                     .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
+                                       .collect(Collectors.toList());
+    log.info(uniqueMatches.size() + " selections are uniquely matched at baseline");
 
     // These matches share at least one control with another case, so will be optimized
-    List<Match> baselineMatchesWithDuplicates = matches.stream()
-                                                       .filter(m -> m.getMatchIDs().stream()
-                                                                     .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
-                                                       .collect(Collectors.toList());
-    log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
-    log.info(baselineMatchesWithDuplicates.size() + " selections are duplicated at baseline");
+    List<Match> matchesWithDuplicates = matches.stream()
+                                               .filter(m -> m.getMatchIDs().stream()
+                                                             .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
+                                               .collect(Collectors.toList());
+    log.info(matchesWithDuplicates.size() + " selections have non-unique matches at baseline");
 
-    if (baselineMatchesWithDuplicates.size() > 0) {
+    if (matchesWithDuplicates.size() > 0) {
       // TODO perform within a community
 
       // Get all control Samples that are matched to at least two cases
-      List<Sample> allDuplicatedcontrols = baselineMatchesWithDuplicates.stream()
-                                                                        .map(m -> m.getMatches())
-                                                                        .flatMap(mlist -> mlist.stream())
-                                                                        .filter(Utils.distinctByKey(c -> c.getID()))
-                                                                        .collect(Collectors.toList());
+      List<Sample> allDuplicatedcontrols = matchesWithDuplicates.stream().map(m -> m.getMatches())
+                                                                .flatMap(mlist -> mlist.stream())
+                                                                .filter(Utils.distinctByKey(c -> c.getID()))
+                                                                .collect(Collectors.toList());
 
       log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
       // Holds matches post optimization
-      List<Match> optimizedMatches = getOptimizedMatches(baselineMatchesWithDuplicates,
+      List<Match> optimizedMatches = getOptimizedMatches(matchesWithDuplicates,
                                                          allDuplicatedcontrols, numSelect, log);
 
-      baselineUniqueMatches.addAll(optimizedMatches);
+      uniqueMatches.addAll(optimizedMatches);
     }
-    return baselineUniqueMatches.stream();
+    return uniqueMatches.stream();
 
   }
 
@@ -137,7 +136,7 @@ public class SelectOptimizedNeighbors {
         optimizedMatches.get(mapOptimize.get(j)).matches.add(selection);
         int size = optimizedMatches.get(mapOptimize.get(j)).matches.size();
 
-        // Note if the order of controls has been updated for this matching
+        // Check if the order of controls has been updated for this matching
         if (!baselineMatchesWithDuplicates.get(mapOptimize.get(j)).matches.get(size - 1).getID()
                                                                           .equals(selection.getID())) {
           optimizedMatches.get(mapOptimize.get(j)).setHungarian(true);
