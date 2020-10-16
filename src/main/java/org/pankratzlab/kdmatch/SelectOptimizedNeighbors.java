@@ -1,39 +1,27 @@
 package org.pankratzlab.kdmatch;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.StringJoiner;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
-import java.util.function.Predicate;
+
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
-// Methods:
-// 1. select k (k greater than final needed) nearest neighbors for all samples
-// 2. prune matches that are completely unique
-// 2. Form groups of samples that share a neighbor
-// 3. Form cost matrix for community, setting select controls that are not shared to have infinite
-// cost for other samples
-// 4. Use hungarian algorithm to allocate controls to minimize total distance between cases and
-// controls
+import java.util.stream.Stream;
 
 public class SelectOptimizedNeighbors {
+
+  private static void addToTree(KDTree<Sample> tree, Sample sample) {
+    tree.add(sample.dim, sample);
+
+  }
+
+  static void addSamplesToTree(KDTree<Sample> tree, Stream<Sample> barnacles) {
+
+    barnacles.forEach(s -> addToTree(tree, s));
+  }
 
   private static List<Sample> getMatches(ResultHeap<Sample> matches) {
     List<Sample> results = new ArrayList<>();
@@ -44,208 +32,102 @@ public class SelectOptimizedNeighbors {
       results.add(matches.removeMax());
     }
 
-    // matches
-    // reverse so first index is nearest
+    // reverse so first index is nearest distance match
     Collections.reverse(results);
     return results;
   }
 
-  private static void addToTree(KDTree<Sample> tree, String[] line) {
-
-    Sample s = new Sample(line[0],
-                          Arrays.stream(line).skip(1).mapToDouble(Double::parseDouble).toArray());
-    tree.add(s.dim, s);
-
-  }
-
-  private static Match getMatchFromTree(KDTree<Sample> tree, String[] line, int numToSelect) {
-
-    Sample s = new Sample(line[0],
-                          Arrays.stream(line).skip(1).mapToDouble(Double::parseDouble).toArray());
-    return new Match(s, getMatches(tree.getNearestNeighbors(s.dim, numToSelect)), false);
+  static Stream<Match> getNearestNeighborsForSamples(KDTree<Sample> tree, Stream<Sample> anchors,
+                                                     int numToSelect) {
+    return anchors.map(a -> new Match(a, getMatches(tree.getNearestNeighbors(a.dim, numToSelect)),
+                                      false));
 
   }
 
-  // https://www.baeldung.com/java-streams-distinct-by
-  private static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+  static Stream<Match> optimizeDuplicates(List<Match> matches, int numSelect, Logger log) {
 
-    Map<Object, Boolean> seen = new ConcurrentHashMap<>();
-    return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
-  }
+    log.info("counting occurrences of each control and finding duplicates");
 
-  private static void addHeader(int numToSelect, String[] headerA, String[] headerB,
-                                PrintWriter writer) {
-    StringJoiner header = new StringJoiner("\t");
-    for (String h : headerA) {
-      header.add(h);
-    }
-    for (int i = 0; i < numToSelect; i++) {
-      header.add("barnacle_" + (i + 1) + "_distance");
-      for (int j = 0; j < headerB.length; j++) {
-        header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
+    Map<String, Long> duplicatedControlCounts = matches.stream().map(m -> m.matches)
+                                                       .flatMap(List::stream)
+                                                       .collect(Collectors.groupingBy(m -> m.getID(),
+                                                                                      Collectors.counting()))
+                                                       .entrySet().stream()
+                                                       .filter(map -> map.getValue() > 1)
+                                                       .collect(Collectors.toMap(map -> map.getKey(),
+                                                                                 map -> map.getValue()));
+    log.info("found " + duplicatedControlCounts.size() + " duplicated controls");
+
+    log.info("pruning selections that are uniquely matched at baseline");
+
+    List<Match> baselineUniqueMatches = matches.stream()
+                                               .filter(m -> m.getMatchIDs().stream()
+                                                             .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
+                                               .collect(Collectors.toList());
+
+    List<Match> baselineMatchesWithDuplicates = matches.stream()
+                                                       .filter(m -> m.getMatchIDs().stream()
+                                                                     .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
+                                                       .collect(Collectors.toList());
+    log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
+    log.info(baselineMatchesWithDuplicates.size() + " selections are duplicated at baseline");
+
+    // Get all control Samples that are matched to at least two cases
+    List<Sample> allDuplicatedcontrols = baselineMatchesWithDuplicates.stream()
+                                                                      .map(m -> m.getMatches())
+                                                                      .flatMap(mlist -> mlist.stream())
+                                                                      .filter(Utils.distinctByKey(c -> c.getID()))
+                                                                      .collect(Collectors.toList());
+
+    log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
+
+    // Holds matches post optimization
+    List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
+    baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>(), true))
+                                 .forEachOrdered(optimizedMatches::add);
+
+    log.info("Selecting optimal and removing duplicates");
+
+    for (int i = 0; i < numSelect; i++) {
+      log.info("Selecting round number " + i + " for total matches:"
+               + baselineMatchesWithDuplicates.size());
+
+      int[] selections = getOptimizedMatch(baselineMatchesWithDuplicates, allDuplicatedcontrols);
+
+      Set<String> toRemove = new HashSet<>();
+      for (int j = 0; j < selections.length; j++) {
+        optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
+        toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
       }
+      // Remove controls that have been selected
+      allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
+                                                   .collect(Collectors.toList());
+      log.info("New number of controls to select from:" + allDuplicatedcontrols.size());
     }
-    header.add("hungarian_selection");
-    writer.println(header);
+
+    baselineUniqueMatches.addAll(optimizedMatches);
+    return baselineUniqueMatches.stream();
+
   }
 
-  private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
-                          int initialNumSelect, int finalNumSelect) throws IOException {
+  private static int[] getOptimizedMatch(List<Match> baselineMatchesWithDuplicates,
+                                         List<Sample> allDuplicatedcontrols) {
+    double[][] costMatrix = new double[baselineMatchesWithDuplicates.size()][allDuplicatedcontrols.size()];
 
-    Logger log = Logger.getAnonymousLogger();
-    String[] headerA = Files.lines(inputFileAnchor).findFirst().get().toString().trim().split("\t");
-    String[] headerB = Files.lines(inputFileBarns).findFirst().get().toString().trim().split("\t");
-    if (Arrays.equals(headerA, headerB)) {
-
-      KDTree<Sample> kd = new KDTree<Sample>(headerA.length - 1);// dimension of the data to
-                                                                 // searched
-      log.info("Assuming 1 ID column and " + (headerA.length - 1) + " data columns");
-
-      log.info("building tree from " + inputFileBarns.toString());
-      Files.lines(inputFileBarns).map(l -> l.split("\t")).skip(1).forEach(a -> addToTree(kd, a));
-      log.info("finished building tree from " + inputFileBarns.toString());
-
-      log.info("selecting nearest neighbors for  " + inputFileAnchor.toString());
-
-      List<Match> matches = Files.lines(inputFileAnchor).map(l -> l.split("\t")).skip(1)
-                                 .map(a -> getMatchFromTree(kd, a, initialNumSelect))
-                                 .collect(Collectors.toList());
-
-      log.info("finished selecting nearest neighbors for  " + matches.size() + " anchors in "
-               + inputFileAnchor.toString());
-
-      log.info("counting occurrences of each control and finding duplicates");
-
-      Map<String, Long> duplicatedControlCounts = matches.stream().map(m -> m.matches)
-                                                         .flatMap(List::stream)
-                                                         .collect(Collectors.groupingBy(m -> m.getID(),
-                                                                                        Collectors.counting()))
-                                                         .entrySet().stream()
-                                                         .filter(map -> map.getValue() > 1)
-                                                         .collect(Collectors.toMap(map -> map.getKey(),
-                                                                                   map -> map.getValue()));
-      log.info("found " + duplicatedControlCounts.size() + " duplicated controls");
-
-      log.info("pruning selections that are uniquely matched at baseline");
-
-      List<Match> baselineUniqueMatches = matches.stream()
-                                                 .filter(m -> m.getMatchIDs().stream()
-                                                               .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
-                                                 .collect(Collectors.toList());
-
-      List<Match> baselineMatchesWithDuplicates = matches.stream()
-                                                         .filter(m -> m.getMatchIDs().stream()
-                                                                       .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
-                                                         .collect(Collectors.toList());
-      log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
-      log.info(baselineMatchesWithDuplicates.size() + " selections are duplicated at baseline");
-
-      List<Sample> allDuplicatedcontrols = baselineMatchesWithDuplicates.stream()
-                                                                        .map(m -> m.getMatches())
-                                                                        .flatMap(mlist -> mlist.stream())
-                                                                        .filter(distinctByKey(c -> c.getID()))
-                                                                        .collect(Collectors.toList());
-
-      log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
-
-      List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
-      baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>(), true))
-                                   .forEachOrdered(optimizedMatches::add);
-
-      log.info("Selecting optimal and removing duplicates");
-
-      for (int i = 0; i < finalNumSelect; i++) {
-        log.info("Selecting round number " + i + " for total matches:"
-                 + baselineMatchesWithDuplicates.size());
-
-        double[][] costMatrix = new double[baselineMatchesWithDuplicates.size()][allDuplicatedcontrols.size()];
-
-        int row = 0;
-        for (Match match : baselineMatchesWithDuplicates) {
-          int col = 0;
-          for (Sample sample : allDuplicatedcontrols) {
-            if (match.hasMatch(sample.ID)) {
-              costMatrix[row][col] = match.getDistanceFrom(sample);
-            } else {
-              costMatrix[row][col] = Double.MAX_VALUE;
-            }
-            col++;
-          }
-          row++;
+    int row = 0;
+    for (Match match : baselineMatchesWithDuplicates) {
+      int col = 0;
+      for (Sample sample : allDuplicatedcontrols) {
+        if (match.hasMatch(sample.ID)) {
+          costMatrix[row][col] = match.getDistanceFrom(sample);
+        } else {
+          costMatrix[row][col] = Double.MAX_VALUE;
         }
-        HungarianAlgorithm hg = new HungarianAlgorithm(costMatrix);
-        int[] selections = hg.execute();
-
-        Set<String> toRemove = new HashSet<>();
-        for (int j = 0; j < selections.length; j++) {
-          optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
-          toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
-        }
-        allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
-                                                     .collect(Collectors.toList());
-        log.info("New number of controls to select from:" + allDuplicatedcontrols.size());
+        col++;
       }
-
-      Map<String, Long> duplicatedControlCountPostOpts = optimizedMatches.stream()
-                                                                         .map(m -> m.matches)
-                                                                         .flatMap(List::stream)
-                                                                         .collect(Collectors.groupingBy(m -> m.getID(),
-                                                                                                        Collectors.counting()))
-                                                                         .entrySet().stream()
-                                                                         .filter(map -> map.getValue() > 1)
-                                                                         .collect(Collectors.toMap(map -> map.getKey(),
-                                                                                                   map -> map.getValue()));
-      log.info(duplicatedControlCountPostOpts.size() + " duplicates remain following optimization");
-
-      new File(ouputDir.toString()).mkdirs();
-      String output = ouputDir + "test.match.NoDups.txt";
-      PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(output, false)));
-      //
-
-      addHeader(finalNumSelect, headerA, headerB, writer);
-
-      baselineUniqueMatches.addAll(optimizedMatches);
-      baselineUniqueMatches.stream().map(m -> m.getFormattedResults(finalNumSelect))
-                           .forEach(s -> writer.println(s));
-      writer.close();
-
-      log.info("output file: " + output);
-
-    } else {
-      log.severe("mismatched file headers");
+      row++;
     }
-
+    return new HungarianAlgorithm(costMatrix).execute();
   }
 
-  public static void main(String[] args) {
-
-    // Assumed that the input files are tab delimited with a header, first column is IDs and the
-    // next columns are what is to be matched on (e.g tsne1,tsne2).
-
-    Path inputFileAnchor = Paths.get(args[0]);
-    // ex. anchors.trim.txt
-    // IID tsne1 tsne2
-    // 1000173 -43.5954364907359 5.31262265439833
-    // 1000891 -59.3878908623605 -74.3238388765456
-    Path inputFileBarns = Paths.get(args[1]);
-    // ex. barns.trim.txt
-    // IID tsne1 tsne2
-    // 1000017 -43.5160309060552 -49.3401376767763
-    // 1000038 65.4590502813067 -63.8399147505082
-    Path ouputDir = Paths.get(args[2]);
-    // Number of controls to select initially (maybe 5X the final number needed)?
-    int initialNumSelect = Integer.parseInt(args[3]);
-
-    int finalNumSelect = Integer.parseInt(args[4]);
-    // int finalNumNeeded = Integer.parseInt(args[3]);
-
-    try {
-      Instant start = Instant.now();
-      run(inputFileAnchor, inputFileBarns, ouputDir, initialNumSelect, finalNumSelect);
-      Logger.getAnonymousLogger().info(Duration.between(start, Instant.now()).toString());
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
-  }
 }

@@ -6,6 +6,10 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
+/**
+ * Holds a sample, and the potential matches (i.e nearest neighbors)
+ *
+ */
 public class Match {
   Sample sample;
   List<Sample> matches;
