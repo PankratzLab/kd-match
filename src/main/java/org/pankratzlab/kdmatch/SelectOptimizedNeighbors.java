@@ -2,10 +2,9 @@ package org.pankratzlab.kdmatch;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -26,8 +25,7 @@ public class SelectOptimizedNeighbors {
   private static List<Sample> getMatches(ResultHeap<Sample> matches) {
     List<Sample> results = new ArrayList<>();
 
-    // retrieve sample starting from farthest away (maybe could add a different method in
-    // ResultHeap
+    // retrieve sample, starting from farthest away
     while (matches.size() > 0) {
       results.add(matches.removeMax());
     }
@@ -59,11 +57,13 @@ public class SelectOptimizedNeighbors {
 
     log.info("pruning selections that are uniquely matched at baseline");
 
+    // These matches do not share any controls with another case, so are done
     List<Match> baselineUniqueMatches = matches.stream()
                                                .filter(m -> m.getMatchIDs().stream()
                                                              .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
                                                .collect(Collectors.toList());
 
+    // These matches share at least one control with another case, so will be optimized
     List<Match> baselineMatchesWithDuplicates = matches.stream()
                                                        .filter(m -> m.getMatchIDs().stream()
                                                                      .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
@@ -71,50 +71,20 @@ public class SelectOptimizedNeighbors {
     log.info(baselineUniqueMatches.size() + " selections are uniquely matched at baseline");
     log.info(baselineMatchesWithDuplicates.size() + " selections are duplicated at baseline");
 
-    // Get all control Samples that are matched to at least two cases
-    List<Sample> allDuplicatedcontrols = baselineMatchesWithDuplicates.stream()
-                                                                      .map(m -> m.getMatches())
-                                                                      .flatMap(mlist -> mlist.stream())
-                                                                      .filter(Utils.distinctByKey(c -> c.getID()))
-                                                                      .collect(Collectors.toList());
+    if (baselineMatchesWithDuplicates.size() > 0) {
+      // TODO perform within a community
 
-    log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
+      // Get all control Samples that are matched to at least two cases
+      List<Sample> allDuplicatedcontrols = baselineMatchesWithDuplicates.stream()
+                                                                        .map(m -> m.getMatches())
+                                                                        .flatMap(mlist -> mlist.stream())
+                                                                        .filter(Utils.distinctByKey(c -> c.getID()))
+                                                                        .collect(Collectors.toList());
 
-    if (allDuplicatedcontrols.size() > 0) {
+      log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
       // Holds matches post optimization
-      List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
-      baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>()))
-                                   .forEachOrdered(optimizedMatches::add);
-
-      log.info("Selecting optimal matches and removing duplicates");
-
-      for (int i = 0; i < numSelect; i++) {
-        log.info("Selecting round number " + i + " for total matches:"
-                 + baselineMatchesWithDuplicates.size());
-
-        int[] selections = getOptimizedMatch(baselineMatchesWithDuplicates, allDuplicatedcontrols);
-
-        Set<String> toRemove = new HashSet<>();
-        for (int j = 0; j < selections.length; j++) {
-          // -1 means the case could not be matched
-          if (selections[j] >= 0) {
-            Sample selection = allDuplicatedcontrols.get(selections[j]);
-            optimizedMatches.get(j).matches.add(selection);
-
-            // Note if the order of controls has changed for this matching
-            if (!baselineMatchesWithDuplicates.get(j).matches.get(i).getID()
-                                                             .equals(selection.getID())) {
-              optimizedMatches.get(j).setHungarian(true);
-
-            }
-            toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
-          }
-        }
-        // Remove controls that have been selected in this round
-        allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
-                                                     .collect(Collectors.toList());
-        log.info("New number of controls to select from:" + allDuplicatedcontrols.size());
-      }
+      List<Match> optimizedMatches = getOptimizedMatches(baselineMatchesWithDuplicates,
+                                                         allDuplicatedcontrols, numSelect, log);
 
       baselineUniqueMatches.addAll(optimizedMatches);
     }
@@ -122,24 +92,60 @@ public class SelectOptimizedNeighbors {
 
   }
 
-  private static int[] getOptimizedMatch(List<Match> baselineMatchesWithDuplicates,
-                                         List<Sample> allDuplicatedcontrols) {
-    double[][] costMatrix = new double[baselineMatchesWithDuplicates.size()][allDuplicatedcontrols.size()];
+  static List<Match> getOptimizedMatches(final List<Match> baselineMatchesWithDuplicates,
+                                         final List<Sample> allDuplicatedcontrols, int numSelect,
+                                         Logger log) {
+
+    Map<Integer, Integer> mapOptimize = new HashMap<Integer, Integer>();
+
+    log.info("Selecting optimal matches and removing duplicates");
+
+    double[][] costMatrix = new double[baselineMatchesWithDuplicates.size()
+                                       * numSelect][allDuplicatedcontrols.size()];
 
     int row = 0;
-    for (Match match : baselineMatchesWithDuplicates) {
-      int col = 0;
-      for (Sample sample : allDuplicatedcontrols) {
-        if (match.hasMatch(sample.ID)) {
-          costMatrix[row][col] = match.getDistanceFrom(sample);
-        } else {
-          costMatrix[row][col] = Double.MAX_VALUE;
+    // We replicate the cases so that "numSelect" controls are evaluated concurrently
+    for (int i = 0; i < numSelect; i++) {
+
+      int map = 0;
+      for (Match match : baselineMatchesWithDuplicates) {
+        mapOptimize.put(row, map);
+        map++;
+        int col = 0;
+        for (Sample sample : allDuplicatedcontrols) {
+          if (match.hasMatch(sample.ID)) {
+            costMatrix[row][col] = match.getDistanceFrom(sample);
+          } else {
+            costMatrix[row][col] = Double.MAX_VALUE;
+          }
+          col++;
         }
-        col++;
+        row++;
       }
-      row++;
     }
-    return new HungarianAlgorithm(costMatrix).execute();
+
+    int[] selections = new HungarianAlgorithm(costMatrix).execute();
+    log.info(selections.length + "");
+    List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
+    baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>()))
+                                 .forEachOrdered(optimizedMatches::add);
+
+    for (int j = 0; j < selections.length; j++) {
+      // -1 means the case could not be matched
+      if (selections[j] >= 0) {
+        Sample selection = allDuplicatedcontrols.get(selections[j]);
+        optimizedMatches.get(mapOptimize.get(j)).matches.add(selection);
+        int size = optimizedMatches.get(mapOptimize.get(j)).matches.size();
+
+        // Note if the order of controls has been updated for this matching
+        if (!baselineMatchesWithDuplicates.get(mapOptimize.get(j)).matches.get(size - 1).getID()
+                                                                          .equals(selection.getID())) {
+          optimizedMatches.get(mapOptimize.get(j)).setHungarian(true);
+
+        }
+      }
+    }
+    return optimizedMatches;
   }
 
 }
