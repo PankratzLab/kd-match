@@ -1,9 +1,7 @@
 package org.pankratzlab.kdmatch;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -50,8 +48,8 @@ public class KDMatch {
 
       log.info("building tree from " + inputFileBarns.toString());
       SelectOptimizedNeighbors.addSamplesToTree(kdTree, getSampleStreamFromFile(inputFileBarns));
-      log.info("selecting " + initialNumSelect + " nearest neighbors for "
-               + inputFileBarns.toString());
+      log.info("selecting initial " + initialNumSelect + " nearest neighbors for "
+               + inputFileAnchor.toString());
       // The initial selection seems to be quick and scales well (seconds on most data)
       List<Match> matches = SelectOptimizedNeighbors.getNearestNeighborsForSamples(kdTree,
                                                                                    getSampleStreamFromFile(inputFileAnchor),

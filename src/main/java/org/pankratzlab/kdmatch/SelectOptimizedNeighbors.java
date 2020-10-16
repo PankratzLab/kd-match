@@ -96,16 +96,19 @@ public class SelectOptimizedNeighbors {
 
         Set<String> toRemove = new HashSet<>();
         for (int j = 0; j < selections.length; j++) {
-          optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
+          // -1 means the case could not be matched
+          if (selections[j] >= 0) {
+            Sample selection = allDuplicatedcontrols.get(selections[j]);
+            optimizedMatches.get(j).matches.add(selection);
 
-          // Note if the order of controls has changed for this matching
-          if (!baselineMatchesWithDuplicates.get(j).matches.get(i).getID()
-                                                           .equals(allDuplicatedcontrols.get(selections[j])
-                                                                                        .getID())) {
-            optimizedMatches.get(j).setHungarian(true);
+            // Note if the order of controls has changed for this matching
+            if (!baselineMatchesWithDuplicates.get(j).matches.get(i).getID()
+                                                             .equals(selection.getID())) {
+              optimizedMatches.get(j).setHungarian(true);
 
+            }
+            toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
           }
-          toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
         }
         // Remove controls that have been selected in this round
         allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
