@@ -88,6 +88,7 @@ public class KDMatch {
     addHeader(numToSelect, headerA, headerB, writer);
 
     matches.map(m -> m.getFormattedResults(numToSelect)).forEach(s -> writer.println(s));
+    writer.close();
   }
 
   private static void addHeader(int numToSelect, String[] headerA, String[] headerB,
