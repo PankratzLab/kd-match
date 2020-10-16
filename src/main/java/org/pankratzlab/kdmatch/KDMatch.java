@@ -21,17 +21,18 @@ public class KDMatch {
 
   // prototype for matching using KD trees(https://en.wikipedia.org/wiki/K-d_tree), with the
   // resolution of duplicate
-  // selections vi the Hungarian Algorithm (https://en.wikipedia.org/wiki/Hungarian_algorithm)
+  // selections via the Hungarian Algorithm (https://en.wikipedia.org/wiki/Hungarian_algorithm)
   // Warning - no real data checks and most things are assumed to be well formed
 
   // Methods:
   // 1. select k (k greater than final needed) nearest neighbors for all samples
   // 2. prune matches that are completely unique
-  // 2. Form groups of samples that share a neighbor
-  // 3. Form cost matrix for community, setting select controls that are not shared to have infinite
-  // cost for other samples
+  // 3. Form groups of samples that share a neighbor
   // 4. Use hungarian algorithm to allocate controls to minimize total distance between cases and
   // controls
+
+  // TODO. optimize duplicates within "communities" only (i.e. only within cases that share at least
+  // one control)
 
   private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
                           int initialNumSelect, int finalNumSelect) throws IOException {
@@ -117,11 +118,12 @@ public class KDMatch {
     // 1000017 -43.5160309060552 -49.3401376767763
     // 1000038 65.4590502813067 -63.8399147505082
     Path ouputDir = Paths.get(args[2]);
-    // Number of controls to select initially (maybe 5X the final number needed)?
+    // Number of controls to select initially (maybe 3X the final number needed?). This allows for a
+    // buffer of extra controls that can be used for de-duplicating
     int initialNumSelect = Integer.parseInt(args[3]);
 
+    // The actual number of controls that are needed in the end
     int finalNumSelect = Integer.parseInt(args[4]);
-    // int finalNumNeeded = Integer.parseInt(args[3]);
 
     try {
       Instant start = Instant.now();

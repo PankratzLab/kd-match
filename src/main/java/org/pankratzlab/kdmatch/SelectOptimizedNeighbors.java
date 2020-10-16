@@ -81,31 +81,33 @@ public class SelectOptimizedNeighbors {
 
     log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
 
-    // Holds matches post optimization
-    List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
-    baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>(), true))
-                                 .forEachOrdered(optimizedMatches::add);
+    if (allDuplicatedcontrols.size() > 0) {
+      // Holds matches post optimization
+      List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
+      baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>(), true))
+                                   .forEachOrdered(optimizedMatches::add);
 
-    log.info("Selecting optimal and removing duplicates");
+      log.info("Selecting optimal matches and removing duplicates");
 
-    for (int i = 0; i < numSelect; i++) {
-      log.info("Selecting round number " + i + " for total matches:"
-               + baselineMatchesWithDuplicates.size());
+      for (int i = 0; i < numSelect; i++) {
+        log.info("Selecting round number " + i + " for total matches:"
+                 + baselineMatchesWithDuplicates.size());
 
-      int[] selections = getOptimizedMatch(baselineMatchesWithDuplicates, allDuplicatedcontrols);
+        int[] selections = getOptimizedMatch(baselineMatchesWithDuplicates, allDuplicatedcontrols);
 
-      Set<String> toRemove = new HashSet<>();
-      for (int j = 0; j < selections.length; j++) {
-        optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
-        toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
+        Set<String> toRemove = new HashSet<>();
+        for (int j = 0; j < selections.length; j++) {
+          optimizedMatches.get(j).matches.add(allDuplicatedcontrols.get(selections[j]));
+          toRemove.add(allDuplicatedcontrols.get(selections[j]).ID);
+        }
+        // Remove controls that have been selected in this round
+        allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
+                                                     .collect(Collectors.toList());
+        log.info("New number of controls to select from:" + allDuplicatedcontrols.size());
       }
-      // Remove controls that have been selected
-      allDuplicatedcontrols = allDuplicatedcontrols.stream().filter(c -> !toRemove.contains(c.ID))
-                                                   .collect(Collectors.toList());
-      log.info("New number of controls to select from:" + allDuplicatedcontrols.size());
-    }
 
-    baselineUniqueMatches.addAll(optimizedMatches);
+      baselineUniqueMatches.addAll(optimizedMatches);
+    }
     return baselineUniqueMatches.stream();
 
   }
