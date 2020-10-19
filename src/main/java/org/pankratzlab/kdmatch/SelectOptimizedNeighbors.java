@@ -43,15 +43,14 @@ public class SelectOptimizedNeighbors {
   }
 
   private static boolean connected(Set<String> idSet, Match match) {
-    return !Collections.disjoint(idSet, match.getMatchIDs());
+    return !Collections.disjoint(idSet, match.getMatchIdSet());
   }
 
   private static List<List<Match>> getCommunities(List<Match> matchesWithDuplicates) {
 
     CommunityDetectionGraph g = new CommunityDetectionGraph(matchesWithDuplicates.size());
     for (int i = 0; i < matchesWithDuplicates.size(); i++) {
-      Set<String> idi = matchesWithDuplicates.get(i).getMatchIDs().stream()
-                                             .collect(Collectors.toSet());
+      Set<String> idi = matchesWithDuplicates.get(i).getMatchIdSet();
       for (int j = 0; j < matchesWithDuplicates.size(); j++) {
         // do not need to compare to self, and is an undirected graph ... so i > j
         if (i > j) {
@@ -94,14 +93,14 @@ public class SelectOptimizedNeighbors {
 
     // These matches do not share any controls with another case, so are done
     List<Match> uniqueMatches = matches.stream()
-                                       .filter(m -> m.getMatchIDs().stream()
+                                       .filter(m -> m.getMatchIDList().stream()
                                                      .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
                                        .collect(Collectors.toList());
     log.info(uniqueMatches.size() + " selections are uniquely matched at baseline");
 
     // These matches share at least one control with another case, so will be optimized
     List<Match> matchesWithDuplicates = matches.stream()
-                                               .filter(m -> m.getMatchIDs().stream()
+                                               .filter(m -> m.getMatchIDList().stream()
                                                              .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
                                                .collect(Collectors.toList());
     log.info(matchesWithDuplicates.size() + " selections have non-unique matches at baseline");

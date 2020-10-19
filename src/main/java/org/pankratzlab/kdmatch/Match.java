@@ -42,12 +42,22 @@ public class Match {
   boolean hasMatch(String ID) {
 
     if (matchIds.size() != matches.size()) {
-      matchIds.addAll(getMatchIDs());
+      matchIds.addAll(getMatchIDList());
     }
     return matchIds.contains(ID);
   }
 
-  List<String> getMatchIDs() {
+  /**
+   * @return the matchIds
+   */
+  Set<String> getMatchIdSet() {
+    if (matchIds.size() != matches.size()) {
+      matchIds.addAll(getMatchIDList());
+    }
+    return matchIds;
+  }
+
+  List<String> getMatchIDList() {
     return matches.stream().map(s -> s.ID).collect(Collectors.toList());
   }
 
