@@ -5,7 +5,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -18,7 +20,6 @@ public class SelectOptimizedNeighbors {
   }
 
   static void addSamplesToTree(KDTree<Sample> tree, Stream<Sample> barnacles) {
-
     barnacles.forEach(s -> addToTree(tree, s));
   }
 
@@ -30,7 +31,7 @@ public class SelectOptimizedNeighbors {
       results.add(matches.removeMax());
     }
 
-    // reverse so first index is nearest distance match
+    // reverse so first index is the nearest distance match
     Collections.reverse(results);
     return results;
   }
@@ -41,7 +42,41 @@ public class SelectOptimizedNeighbors {
 
   }
 
-  static Stream<Match> optimizeDuplicates(List<Match> matches, int numSelect, Logger log) {
+  private static boolean connected(Set<String> idSet, Match match) {
+    return !Collections.disjoint(idSet, match.getMatchIDs());
+  }
+
+  private static List<List<Match>> getCommunities(List<Match> matchesWithDuplicates) {
+
+    CommunityDetectionGraph g = new CommunityDetectionGraph(matchesWithDuplicates.size());
+    for (int i = 0; i < matchesWithDuplicates.size(); i++) {
+      Set<String> idi = matchesWithDuplicates.get(i).getMatchIDs().stream()
+                                             .collect(Collectors.toSet());
+      for (int j = 0; j < matchesWithDuplicates.size(); j++) {
+        // do not need to compare to self, and is an undirected graph ... so i > j
+        if (i > j) {
+          if (connected(idi, matchesWithDuplicates.get(j))) {
+            g.addEdge(i, j);
+          }
+        }
+      }
+    }
+
+    List<List<Match>> communities = new ArrayList<List<Match>>();
+    List<List<Integer>> connections = g.connectedComponents();
+    for (List<Integer> community : connections) {
+      List<Match> current = new ArrayList<>();
+      for (Integer m : community) {
+        current.add(matchesWithDuplicates.get(m));
+      }
+      communities.add(current);
+    }
+    return communities;
+  }
+
+  static Stream<Match> optimizeDuplicates(List<Match> matches, int numSelect, int threads,
+                                          Logger log) throws InterruptedException,
+                                                      ExecutionException {
 
     log.info("counting occurrences of each control and finding duplicates");
 
@@ -72,49 +107,62 @@ public class SelectOptimizedNeighbors {
     log.info(matchesWithDuplicates.size() + " selections have non-unique matches at baseline");
 
     if (matchesWithDuplicates.size() > 0) {
-      // TODO perform within a community
+      // form connected communities
+      log.info("Forming  communities");
 
-      // Get all control Samples that are matched to at least two cases
-      List<Sample> allDuplicatedcontrols = matchesWithDuplicates.stream().map(m -> m.getMatches())
-                                                                .flatMap(mlist -> mlist.stream())
-                                                                .filter(Utils.distinctByKey(c -> c.getID()))
-                                                                .collect(Collectors.toList());
+      List<List<Match>> communities = getCommunities(matchesWithDuplicates);
+      log.info("Optimizing selection within " + communities.size() + " communities");
 
-      log.info(allDuplicatedcontrols.size() + " total controls to de-duplicate");
       // Holds matches post optimization
-      List<Match> optimizedMatches = getOptimizedMatches(matchesWithDuplicates,
-                                                         allDuplicatedcontrols, numSelect, log);
+      List<Match> optimizedMatches = new ForkJoinPool(threads).submit(() ->
 
+      // parallel stream invoked here to process each community individually (not sure if it is
+      // actually
+      // working, but could be parallelized another way)
+      communities.parallelStream().map(e -> getOptimizedMatches(e, numSelect, log))
+                 .flatMap(List::stream).collect(Collectors.toList())
+
+      ).get();
+
+      if (optimizedMatches.size() != matchesWithDuplicates.size()) {
+        throw new IllegalStateException("Mismatched number of matches");
+
+      }
       uniqueMatches.addAll(optimizedMatches);
     }
     return uniqueMatches.stream();
 
   }
 
-  static List<Match> getOptimizedMatches(final List<Match> baselineMatchesWithDuplicates,
-                                         final List<Sample> allDuplicatedcontrols, int numSelect,
-                                         Logger log) {
+  private static List<Match> getOptimizedMatches(final List<Match> matchesWithDuplicates,
+                                                 int numSelect, Logger log) {
+    // Extract all unique control Samples that are matched to at least two cases
+    List<Sample> allUniqueControls = matchesWithDuplicates.stream().map(m -> m.getMatches())
+                                                          .flatMap(mlist -> mlist.stream())
+                                                          .filter(Utils.distinctByKey(c -> c.getID()))
+                                                          .collect(Collectors.toList());
 
     Map<Integer, Integer> mapOptimize = new HashMap<Integer, Integer>();
 
-    log.info("Selecting optimal matches and removing duplicates");
-
-    double[][] costMatrix = new double[baselineMatchesWithDuplicates.size()
-                                       * numSelect][allDuplicatedcontrols.size()];
+    double[][] costMatrix = new double[matchesWithDuplicates.size()
+                                       * numSelect][allUniqueControls.size()];
 
     int row = 0;
-    // We replicate the cases so that "numSelect" controls are evaluated concurrently
+    // We replicate the cases in multiple rows so that "numSelect" of each case are evaluated at the
+    // same time
     for (int i = 0; i < numSelect; i++) {
 
       int map = 0;
-      for (Match match : baselineMatchesWithDuplicates) {
+      for (Match match : matchesWithDuplicates) {
         mapOptimize.put(row, map);
         map++;
         int col = 0;
-        for (Sample sample : allDuplicatedcontrols) {
+        for (Sample sample : allUniqueControls) {
           if (match.hasMatch(sample.ID)) {
             costMatrix[row][col] = match.getDistanceFrom(sample);
           } else {
+            // set to max value if the sample does not share a particular control as a nearest
+            // neighbor
             costMatrix[row][col] = Double.MAX_VALUE;
           }
           col++;
@@ -124,21 +172,21 @@ public class SelectOptimizedNeighbors {
     }
 
     int[] selections = new HungarianAlgorithm(costMatrix).execute();
-    log.info(selections.length + "");
-    List<Match> optimizedMatches = new ArrayList<>(baselineMatchesWithDuplicates.size());
-    baselineMatchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>()))
-                                 .forEachOrdered(optimizedMatches::add);
+    // initialize new optimized matches
+    List<Match> optimizedMatches = new ArrayList<>(matchesWithDuplicates.size());
+    matchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>()))
+                         .forEachOrdered(optimizedMatches::add);
 
     for (int j = 0; j < selections.length; j++) {
       // -1 means the case could not be matched
       if (selections[j] >= 0) {
-        Sample selection = allDuplicatedcontrols.get(selections[j]);
+        Sample selection = allUniqueControls.get(selections[j]);
         optimizedMatches.get(mapOptimize.get(j)).matches.add(selection);
         int size = optimizedMatches.get(mapOptimize.get(j)).matches.size();
 
         // Check if the order of controls has been updated for this matching
-        if (!baselineMatchesWithDuplicates.get(mapOptimize.get(j)).matches.get(size - 1).getID()
-                                                                          .equals(selection.getID())) {
+        if (!matchesWithDuplicates.get(mapOptimize.get(j)).matches.get(size - 1).getID()
+                                                                  .equals(selection.getID())) {
           optimizedMatches.get(mapOptimize.get(j)).setHungarian(true);
 
         }
@@ -146,5 +194,4 @@ public class SelectOptimizedNeighbors {
     }
     return optimizedMatches;
   }
-
 }
