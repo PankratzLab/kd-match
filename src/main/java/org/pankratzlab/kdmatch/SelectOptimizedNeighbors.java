@@ -46,6 +46,7 @@ public class SelectOptimizedNeighbors {
     return !Collections.disjoint(idSet, match.getMatchIdSet());
   }
 
+  // TODO this will not scale super well
   private static List<List<Match>> getCommunities(List<Match> matchesWithDuplicates) {
 
     CommunityDetectionGraph g = new CommunityDetectionGraph(matchesWithDuplicates.size());
