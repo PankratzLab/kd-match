@@ -18,13 +18,13 @@ public class CommunityDetectionGraph {
     this.V = V;
     // define the size of array as
     // number of vertices
-    adjListArray = new ArrayList<LinkedList<Integer>>(V);
+    adjListArray = new ArrayList<>(V);
 
     // Create a new list for each vertex
     // such that adjacent nodes can be stored
 
     for (int i = 0; i < V; i++) {
-      adjListArray.add(new LinkedList<Integer>());
+      adjListArray.add(new LinkedList<>());
     }
   }
 
@@ -76,9 +76,9 @@ public class CommunityDetectionGraph {
     g.addEdge(1, 0);
     g.addEdge(2, 3);
     g.addEdge(3, 4);
-    System.out.println("Following are connected components");
+    // System.out.println("Following are connected components");
     List<List<Integer>> results = g.connectedComponents();
-    results.stream().forEach(s -> System.out.println(s));
+    results.stream().forEach(System.out::println);
   }
 
 }

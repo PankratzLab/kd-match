@@ -2,7 +2,9 @@ package org.pankratzlab.kdmatch;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 // Sourced from https://robowiki.net/wiki/User:Chase-san/Kd-Tree . NB: ZLIB License
 
@@ -80,7 +82,7 @@ public class KDTree<T> {
   @SuppressWarnings("unchecked")
   public List<T> getRange(double[] low, double[] high) {
     Object[] objs = root.range(high, low);
-    ArrayList<T> range = new ArrayList<T>(objs.length);
+    ArrayList<T> range = new ArrayList<>(objs.length);
     for (int i = 0; i < objs.length; ++i) {
       range.add((T) objs[i]);
     }
@@ -96,7 +98,7 @@ public class KDTree<T> {
    *         between them and the key
    */
   public ResultHeap<T> getNearestNeighbors(double[] key, int num) {
-    ResultHeap<T> heap = new ResultHeap<T>(num);
+    ResultHeap<T> heap = new ResultHeap<>(num);
     root.nearest(heap, key);
     return heap;
   }
@@ -295,5 +297,35 @@ public class KDTree<T> {
       }
     }
     return d;
+  }
+
+  // Below are helper methods added by @jlanej and are not a part of the original code
+
+  private static void addToTree(KDTree<Sample> tree, Sample sample) {
+    tree.add(sample.dim, sample);
+
+  }
+
+  static void addSamplesToTree(KDTree<Sample> tree, Stream<Sample> barnacles) {
+    barnacles.forEach(s -> addToTree(tree, s));
+  }
+
+  private static List<Sample> getMatches(ResultHeap<Sample> matches) {
+    List<Sample> results = new ArrayList<>();
+
+    // retrieve sample, starting from farthest away
+    while (matches.size() > 0) {
+      results.add(matches.removeMax());
+    }
+
+    // reverse so first index is the nearest distance match
+    Collections.reverse(results);
+    return results;
+  }
+
+  static Stream<Match> getNearestNeighborsForSamples(KDTree<Sample> tree, Stream<Sample> anchors,
+                                                     int numToSelect) {
+    return anchors.map(a -> new Match(a, getMatches(tree.getNearestNeighbors(a.dim, numToSelect))));
+
   }
 }

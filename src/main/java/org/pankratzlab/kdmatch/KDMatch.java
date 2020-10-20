@@ -48,14 +48,14 @@ public class KDMatch {
       log.info("Assuming 1 ID column and " + (headerA.length - 1) + " data columns");
 
       log.info("building tree from " + inputFileBarns.toString());
-      SelectOptimizedNeighbors.addSamplesToTree(kdTree, getSampleStreamFromFile(inputFileBarns));
+      KDTree.addSamplesToTree(kdTree, getSampleStreamFromFile(inputFileBarns));
       log.info("selecting initial " + initialNumSelect + " nearest neighbors for "
                + inputFileAnchor.toString());
       // The initial selection seems to be quick and scales well (seconds on most data).
-      List<Match> naiveMatches = SelectOptimizedNeighbors.getNearestNeighborsForSamples(kdTree,
-                                                                                        getSampleStreamFromFile(inputFileAnchor),
-                                                                                        initialNumSelect)
-                                                         .collect(Collectors.toList());
+      List<Match> naiveMatches = KDTree.getNearestNeighborsForSamples(kdTree,
+                                                                      getSampleStreamFromFile(inputFileAnchor),
+                                                                      initialNumSelect)
+                                       .collect(Collectors.toList());
       String outputBase = ouputDir + File.separator + "test.match.AllowDups.txt.gz";
 
       log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "

@@ -1,52 +1,28 @@
 package org.pankratzlab.kdmatch;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SelectOptimizedNeighbors {
-
-  private static void addToTree(KDTree<Sample> tree, Sample sample) {
-    tree.add(sample.dim, sample);
-
-  }
-
-  static void addSamplesToTree(KDTree<Sample> tree, Stream<Sample> barnacles) {
-    barnacles.forEach(s -> addToTree(tree, s));
-  }
-
-  private static List<Sample> getMatches(ResultHeap<Sample> matches) {
-    List<Sample> results = new ArrayList<>();
-
-    // retrieve sample, starting from farthest away
-    while (matches.size() > 0) {
-      results.add(matches.removeMax());
-    }
-
-    // reverse so first index is the nearest distance match
-    Collections.reverse(results);
-    return results;
-  }
-
-  static Stream<Match> getNearestNeighborsForSamples(KDTree<Sample> tree, Stream<Sample> anchors,
-                                                     int numToSelect) {
-    return anchors.map(a -> new Match(a, getMatches(tree.getNearestNeighbors(a.dim, numToSelect))));
-
-  }
+  private SelectOptimizedNeighbors() {}
 
   private static boolean connected(Set<String> idSet, Match match) {
     return !Collections.disjoint(idSet, match.getMatchIdSet());
   }
 
-  // TODO this will not scale super well
+  // NOTE this will not scale super well
   private static List<List<Match>> getCommunities(List<Match> matchesWithDuplicates) {
 
     CommunityDetectionGraph g = new CommunityDetectionGraph(matchesWithDuplicates.size());
@@ -54,16 +30,15 @@ public class SelectOptimizedNeighbors {
       Set<String> idi = matchesWithDuplicates.get(i).getMatchIdSet();
       for (int j = 0; j < matchesWithDuplicates.size(); j++) {
         // do not need to compare to self, and is an undirected graph ... so i > j
-        if (i > j) {
-          if (connected(idi, matchesWithDuplicates.get(j))) {
-            g.addEdge(i, j);
-          }
+        if (i > j && connected(idi, matchesWithDuplicates.get(j))) {
+          g.addEdge(i, j);
         }
       }
     }
 
-    List<List<Match>> communities = new ArrayList<List<Match>>();
+    List<List<Match>> communities = new ArrayList<>();
     List<List<Integer>> connections = g.connectedComponents();
+
     for (List<Integer> community : connections) {
       List<Match> current = new ArrayList<>();
       for (Integer m : community) {
@@ -82,44 +57,45 @@ public class SelectOptimizedNeighbors {
 
     Map<String, Long> duplicatedControlCounts = matches.stream().map(m -> m.matches)
                                                        .flatMap(List::stream)
-                                                       .collect(Collectors.groupingBy(m -> m.getID(),
+                                                       .collect(Collectors.groupingBy(Sample::getID,
                                                                                       Collectors.counting()))
                                                        .entrySet().stream()
                                                        .filter(map -> map.getValue() > 1)
-                                                       .collect(Collectors.toMap(map -> map.getKey(),
-                                                                                 map -> map.getValue()));
-    log.info("found " + duplicatedControlCounts.size() + " duplicated controls");
+                                                       .collect(Collectors.toMap(Entry::getKey,
+                                                                                 Entry::getValue));
+    log.log(Level.INFO, "found  {0} duplicated controls", duplicatedControlCounts.size());
 
     log.info("pruning selections that are uniquely matched at baseline");
 
     // These matches do not share any controls with another case, so are done
     List<Match> uniqueMatches = matches.stream()
                                        .filter(m -> m.getMatchIDList().stream()
-                                                     .noneMatch(s -> duplicatedControlCounts.containsKey(s)))
+                                                     .noneMatch(duplicatedControlCounts::containsKey))
                                        .collect(Collectors.toList());
-    log.info(uniqueMatches.size() + " selections are uniquely matched at baseline");
+    log.log(Level.INFO, "{0} selections are uniquely matched at baseline", uniqueMatches.size());
 
     // These matches share at least one control with another case, so will be optimized
     List<Match> matchesWithDuplicates = matches.stream()
                                                .filter(m -> m.getMatchIDList().stream()
-                                                             .anyMatch(s -> duplicatedControlCounts.containsKey(s)))
+                                                             .anyMatch(duplicatedControlCounts::containsKey))
                                                .collect(Collectors.toList());
-    log.info(matchesWithDuplicates.size() + " selections have non-unique matches at baseline");
+    log.log(Level.INFO, "{0} selections have non-unique matches at baseline",
+            matchesWithDuplicates.size());
 
-    if (matchesWithDuplicates.size() > 0) {
+    if (!matchesWithDuplicates.isEmpty()) {
       // form connected communities
       log.info("Forming  communities");
 
       List<List<Match>> communities = getCommunities(matchesWithDuplicates);
-      log.info("Optimizing selection within " + communities.size() + " communities");
+      log.log(Level.INFO, "Optimizing selection within {0} communities", communities.size());
 
       // Holds matches post optimization
       List<Match> optimizedMatches = new ForkJoinPool(threads).submit(() ->
 
       // parallel stream invoked here to process each community individually. Threading this way
       // doesn't have a huge benefit (10-20% speedup with 6 threads, 100/10 selection), but helps.
-      communities.parallelStream().map(e -> getOptimizedMatches(e, numSelect, log))
-                 .flatMap(List::stream).collect(Collectors.toList())
+      communities.parallelStream().map(e -> getOptimizedMatches(e, numSelect)).flatMap(List::stream)
+                 .collect(Collectors.toList())
 
       ).get();
 
@@ -134,14 +110,14 @@ public class SelectOptimizedNeighbors {
   }
 
   private static List<Match> getOptimizedMatches(final List<Match> matchesWithDuplicates,
-                                                 int numSelect, Logger log) {
+                                                 int numSelect) {
     // Extract all unique control Samples that are matched to at least two cases
-    List<Sample> allUniqueControls = matchesWithDuplicates.stream().map(m -> m.getMatches())
-                                                          .flatMap(mlist -> mlist.stream())
-                                                          .filter(Utils.distinctByKey(c -> c.getID()))
+    List<Sample> allUniqueControls = matchesWithDuplicates.stream().map(Match::getMatches)
+                                                          .flatMap(Collection::stream)
+                                                          .filter(Utils.distinctByKey(Sample::getID))
                                                           .collect(Collectors.toList());
 
-    Map<Integer, Integer> mapOptimize = new HashMap<Integer, Integer>();
+    Map<Integer, Integer> mapOptimize = new HashMap<>();
 
     double[][] costMatrix = new double[matchesWithDuplicates.size()
                                        * numSelect][allUniqueControls.size()];
