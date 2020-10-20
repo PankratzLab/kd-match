@@ -34,23 +34,24 @@ class KDMatch {
   // communities of matches that are connected by at least one control)
 
   private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
-                          int initialNumSelect, int finalNumSelect,
-                          int threads) throws IOException, InterruptedException,
-                                       ExecutionException {
-    Logger log = Logger.getAnonymousLogger();
+                          int initialNumSelect, int finalNumSelect, int threads,
+                          Logger log) throws IOException, InterruptedException, ExecutionException {
     String[] headerA = Files.lines(inputFileAnchor).findFirst().get().toString().trim().split("\t");
     String[] headerB = Files.lines(inputFileBarns).findFirst().get().toString().trim().split("\t");
     new File(ouputDir.toString()).mkdirs();
 
     if (Arrays.equals(headerA, headerB)) {
-      KDTree<Sample> kdTree = new KDTree<Sample>(headerA.length - 1);// dimension of the data to be
-                                                                     // searched
+      KDTree<Sample> kdTree = new KDTree<>(headerA.length - 1);// dimension of the data to be
+                                                               // searched
       log.info("Assuming 1 ID column and " + (headerA.length - 1) + " data columns");
 
       log.info("building tree from " + inputFileBarns.toString());
+
       KDTree.addSamplesToTree(kdTree, getSampleStreamFromFile(inputFileBarns));
+
       log.info("selecting initial " + initialNumSelect + " nearest neighbors for "
                + inputFileAnchor.toString());
+
       // The initial selection seems to be quick and scales well (seconds on most data).
       List<Match> naiveMatches = KDTree.getNearestNeighborsForSamples(kdTree,
                                                                       getSampleStreamFromFile(inputFileAnchor),
@@ -71,6 +72,7 @@ class KDMatch {
                                                                                    threads, log);
       log.info("reporting optimized selection of " + finalNumSelect + " nearest neighbors to "
                + outputOpt);
+
       writeToFile(optimizedMatches, outputOpt, headerA, headerB, finalNumSelect);
 
     }
@@ -133,8 +135,9 @@ class KDMatch {
 
     try {
       Instant start = Instant.now();
-      run(inputFileAnchor, inputFileBarns, ouputDir, initialNumSelect, finalNumSelect, 6);
-      Logger.getAnonymousLogger().info(Duration.between(start, Instant.now()).toString());
+      Logger log = Logger.getAnonymousLogger();
+      run(inputFileAnchor, inputFileBarns, ouputDir, initialNumSelect, finalNumSelect, 6, log);
+      log.info(Duration.between(start, Instant.now()).toString());
     } catch (IOException | InterruptedException | ExecutionException e) {
       e.printStackTrace();
     }
