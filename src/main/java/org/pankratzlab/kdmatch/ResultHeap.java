@@ -26,7 +26,7 @@ package org.pankratzlab.kdmatch;
  * @author Chase
  * 
  */
-public class ResultHeap<T> {
+class ResultHeap<T> {
   private Object[] data;
   private double[] keys;
   private int capacity;

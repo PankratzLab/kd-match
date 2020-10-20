@@ -5,7 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 // Modified from https://www.geeksforgeeks.org/connected-components-in-an-undirected-graph/
-public class CommunityDetectionGraph {
+class CommunityDetectionGraph {
   // A user define class to represent a graph.
   // A graph is an array of adjacency lists.
   // Size of array will be V (number of vertices

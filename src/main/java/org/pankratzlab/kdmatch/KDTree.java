@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  * @author Chase
  * 
  */
-public class KDTree<T> {
+class KDTree<T> {
   protected static final int defaultBucketSize = 48;
 
   private final int dimensions;

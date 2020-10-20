@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
-public class KDMatch {
+class KDMatch {
 
   // prototype for matching using KD trees(https://en.wikipedia.org/wiki/K-d_tree), with the
   // resolution of duplicate

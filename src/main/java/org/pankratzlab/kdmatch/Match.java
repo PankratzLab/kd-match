@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
  * Holds a sample, and the potential matches (i.e nearest neighbors)
  *
  */
-public class Match {
+class Match {
   Sample sample;
   List<Sample> matches;
   private Set<String> matchIds;

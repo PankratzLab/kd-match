@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SelectOptimizedNeighbors {
+class SelectOptimizedNeighbors {
   private SelectOptimizedNeighbors() {}
 
   private static boolean connected(Set<String> idSet, Match match) {
