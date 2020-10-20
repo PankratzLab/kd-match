@@ -124,7 +124,7 @@ public class KDMatch {
     // 1000017 -43.5160309060552 -49.3401376767763
     // 1000038 65.4590502813067 -63.8399147505082
     Path ouputDir = Paths.get(args[2]);
-    // Number of controls to select initially (maybe 3X the final number needed?). This allows for a
+    // Number of controls to select initially (maybe 5X the final number needed?). This allows for a
     // buffer of extra controls that can be used for de-duplicating
     int initialNumSelect = Integer.parseInt(args[3]);
 
