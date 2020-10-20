@@ -116,9 +116,8 @@ public class SelectOptimizedNeighbors {
       // Holds matches post optimization
       List<Match> optimizedMatches = new ForkJoinPool(threads).submit(() ->
 
-      // parallel stream invoked here to process each community individually (not sure if it is
-      // actually
-      // working, but could be parallelized another way)
+      // parallel stream invoked here to process each community individually. Threading this way
+      // doesn't have a huge benefit (10-20% speedup with 6 threads, 100/10 selection), but helps.
       communities.parallelStream().map(e -> getOptimizedMatches(e, numSelect, log))
                  .flatMap(List::stream).collect(Collectors.toList())
 
