@@ -176,17 +176,17 @@ public class SelectOptimizedNeighbors {
     matchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>()))
                          .forEachOrdered(optimizedMatches::add);
 
-    for (int j = 0; j < selections.length; j++) {
+    for (int i = 0; i < selections.length; i++) {
       // -1 means the case could not be matched
-      if (selections[j] >= 0) {
-        Sample selection = allUniqueControls.get(selections[j]);
-        optimizedMatches.get(mapOptimize.get(j)).matches.add(selection);
-        int size = optimizedMatches.get(mapOptimize.get(j)).matches.size();
+      if (selections[i] >= 0) {
+        Sample selection = allUniqueControls.get(selections[i]);
+        optimizedMatches.get(mapOptimize.get(i)).matches.add(selection);
+        int size = optimizedMatches.get(mapOptimize.get(i)).matches.size();
 
         // Check if the order of controls has been updated for this matching
-        if (!matchesWithDuplicates.get(mapOptimize.get(j)).matches.get(size - 1).getID()
+        if (!matchesWithDuplicates.get(mapOptimize.get(i)).matches.get(size - 1).getID()
                                                                   .equals(selection.getID())) {
-          optimizedMatches.get(mapOptimize.get(j)).setHungarian(true);
+          optimizedMatches.get(mapOptimize.get(i)).setHungarian(true);
 
         }
       }
