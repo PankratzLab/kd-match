@@ -36,7 +36,7 @@ public class Sample {
 			dim[i] = Double.parseDouble(sampleLine[numericColumnsToUseForClustering[i]]) * factorLoadings.getDoubleLoadings().get(i);
 		}
 		for (int i = 0; i < factorColumnsToAssignGroup.length; i++) {
-			group += ("group" + i + "_" + sampleLine[factorColumnsToAssignGroup[i]] + "_");
+			group += (sampleLine[factorColumnsToAssignGroup[i]] + "_");
 		}
 		return new Sample(id, dim, status, group);
 	}
