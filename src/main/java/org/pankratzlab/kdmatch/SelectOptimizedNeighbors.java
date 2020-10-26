@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-class SelectOptimizedNeighbors {
+public class SelectOptimizedNeighbors {
   private SelectOptimizedNeighbors() {}
 
   private static boolean connected(Set<String> idSet, Match match) {
@@ -49,7 +49,7 @@ class SelectOptimizedNeighbors {
     return communities;
   }
 
-  static Stream<Match> optimizeDuplicates(List<Match> matches, int numSelect, int threads,
+  public static Stream<Match> optimizeDuplicates(List<Match> matches, int numSelect, int threads,
                                           Logger log) throws InterruptedException,
                                                       ExecutionException {
 
