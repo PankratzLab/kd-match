@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  * @author Chase
  * 
  */
-class KDTree<T> {
+public class KDTree<T> {
   protected static final int defaultBucketSize = 48;
 
   private final int dimensions;
@@ -306,7 +306,7 @@ class KDTree<T> {
 
   }
 
-  static void addSamplesToTree(KDTree<Sample> tree, Stream<Sample> barnacles) {
+  public static void addSamplesToTree(KDTree<Sample> tree, Stream<Sample> barnacles) {
     barnacles.forEach(s -> addToTree(tree, s));
   }
 
@@ -323,7 +323,7 @@ class KDTree<T> {
     return results;
   }
 
-  static Stream<Match> getNearestNeighborsForSamples(KDTree<Sample> tree, Stream<Sample> anchors,
+  public static Stream<Match> getNearestNeighborsForSamples(KDTree<Sample> tree, Stream<Sample> anchors,
                                                      int numToSelect) {
     return anchors.map(a -> new Match(a, getMatches(tree.getNearestNeighbors(a.dim, numToSelect))));
 

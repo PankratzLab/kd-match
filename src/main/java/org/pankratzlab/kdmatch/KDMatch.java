@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
-class KDMatch {
+public class KDMatch {
 
   // prototype for matching using KD trees(https://en.wikipedia.org/wiki/K-d_tree), with the
   // resolution of duplicate
@@ -79,13 +79,13 @@ class KDMatch {
 
   }
 
-  private static Stream<Sample> getSampleStreamFromFile(Path inputFileBarns) throws IOException {
+  public static Stream<Sample> getSampleStreamFromFile(Path inputFileBarns) throws IOException {
     return Files.lines(inputFileBarns).map(l -> l.split("\t")).skip(1)
                 .map(s -> new Sample(s[0], Arrays.stream(s).skip(1).mapToDouble(Double::parseDouble)
                                                  .toArray()));
   }
 
-  private static void writeToFile(Stream<Match> matches, String output, String[] headerA,
+  public static void writeToFile(Stream<Match> matches, String output, String[] headerA,
                                   String[] headerB, int numToSelect) throws IOException {
     PrintWriter writer = new PrintWriter(new GZIPOutputStream(new FileOutputStream(output, false)));
     addHeader(numToSelect, headerA, headerB, writer);
