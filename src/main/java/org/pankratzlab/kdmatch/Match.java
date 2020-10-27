@@ -71,16 +71,24 @@ public class Match {
     results.add(sample.getOutput());
 
     for (int i = 0; i < numToSelect; i++) {
-      Sample control = matches.get(i);
-      results.add(Double.toString(getDistanceFrom(control)));
-      results.add(control.ID);
-      for (int j = 0; j < sample.dim.length; j++) {
-        results.add(Double.toString(control.dim[j]));
+      // TODO untested
+      if (matches != null && matches.size() > i) {
+        Sample control = matches.get(i);
+        results.add(Double.toString(getDistanceFrom(control)));
+        results.add(control.ID);
+        for (int j = 0; j < sample.dim.length; j++) {
+          results.add(Double.toString(control.dim[j]));
+        }
+      } else {
+        // TODO untested
+        results.add(Double.toString(Double.NaN));
+        results.add("NA");
+        for (int j = 0; j < sample.dim.length; j++) {
+          results.add(Double.toString(Double.NaN));
+        }
       }
-
     }
     results.add(Boolean.toString(hungarian));
-
     return results.toString();
 
   }
