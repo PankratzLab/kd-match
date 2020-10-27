@@ -1,10 +1,7 @@
 package org.pankratzlab.kdmatch;
 
-import java.util.Map;
 import java.util.StringJoiner;
-import java.util.stream.Stream;
 
-import org.pankratzlab.internal.gwas.FactorLoadings;
 
 public class Sample {
 	/**
@@ -25,22 +22,6 @@ public class Sample {
 		this.group = group;
 	}
 	
-	public static Sample parseSample(String[] sampleLine, int idCol, int[] numericColumnsToUseForClustering,
-			int[] factorColumnsToAssignGroup, FactorLoadings factorLoadings) {
-		String group = "";
-		String id = sampleLine[idCol];
-		int status = Integer.parseInt(sampleLine[idCol+1]);
-		double[] dim = new double[numericColumnsToUseForClustering.length];
-		for (int i = 0; i < dim.length; i++) {
-			//TODO improve: This isn't great - I think it requires the factors input argument from user to be in file column order
-			dim[i] = Double.parseDouble(sampleLine[numericColumnsToUseForClustering[i]]) * factorLoadings.getDoubleLoadings().get(i);
-		}
-		for (int i = 0; i < factorColumnsToAssignGroup.length; i++) {
-			group += (sampleLine[factorColumnsToAssignGroup[i]] + "_");
-		}
-		return new Sample(id, dim, status, group);
-	}
-
 	public boolean isValidCaseOrControl() {
 		return (this.isCase() || this.isControl());
 	}
