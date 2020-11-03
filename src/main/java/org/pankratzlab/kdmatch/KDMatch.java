@@ -1,7 +1,9 @@
 package org.pankratzlab.kdmatch;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -87,9 +89,12 @@ public class KDMatch {
 
   public static void writeToFile(Stream<Match> matches, String output, String[] headerA,
                                   String[] headerB, int numToSelect) throws IOException {
-    PrintWriter writer = new PrintWriter(new GZIPOutputStream(new FileOutputStream(output, false)));
-    addHeader(numToSelect, headerA, headerB, writer);
-
+    PrintWriter writer = new PrintWriter(new FileOutputStream(output, true));
+    BufferedReader br = new BufferedReader(new FileReader(output));     
+    if (br.readLine() == null) {
+    	addHeader(numToSelect, headerA, headerB, writer);
+    }
+    
     matches.map(m -> m.getFormattedResults(numToSelect)).forEach(s -> writer.println(s));
     writer.close();
   }
@@ -97,14 +102,18 @@ public class KDMatch {
   private static void addHeader(int numToSelect, String[] headerA, String[] headerB,
                                 PrintWriter writer) {
     StringJoiner header = new StringJoiner("\t");
+    header.add("id");
     for (String h : headerA) {
       header.add(h);
     }
+    header.add("group");
     for (int i = 0; i < numToSelect; i++) {
-      header.add("barnacle_" + (i + 1) + "_distance");
+      header.add("control_" + (i + 1) + "_id");
+      header.add("control_" + (i + 1) + "_distance");
       for (int j = 0; j < headerB.length; j++) {
-        header.add("barnacle_" + (i + 1) + "_" + headerB[j]);
+        header.add("control_" + (i + 1) + "_" + headerB[j]);
       }
+      header.add("control_" + (i + 1) + "_" + "group");
     }
     header.add("hungarian_selection");
     writer.println(header);

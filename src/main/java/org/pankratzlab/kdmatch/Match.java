@@ -74,18 +74,24 @@ public class Match {
       // TODO untested
       if (matches != null && matches.size() > i) {
         Sample control = matches.get(i);
+        results.add(control.getID());
         results.add(Double.toString(getDistanceFrom(control)));
-        results.add(control.ID);
         for (int j = 0; j < sample.dim.length; j++) {
           results.add(Double.toString(control.dim[j]));
         }
+        if (!control.getGroup().equals("")) {
+        	results.add(control.getGroup());
+        } else {
+        	results.add("no_group");
+        }
       } else {
         // TODO untested
+    	results.add("no-match");
         results.add(Double.toString(Double.NaN));
-        results.add("NA");
         for (int j = 0; j < sample.dim.length; j++) {
           results.add(Double.toString(Double.NaN));
         }
+        results.add("NA");
       }
     }
     results.add(Boolean.toString(hungarian));

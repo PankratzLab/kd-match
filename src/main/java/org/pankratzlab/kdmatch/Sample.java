@@ -59,6 +59,11 @@ public class Sample {
 		for (int i = 0; i < dim.length; i++) {
 			j.add(Double.toString(dim[i]));
 		}
+		if (!this.getGroup().equals("")) {
+			j.add(this.getGroup());
+		} else {
+			j.add("no_group");
+		}
 		return j.toString();
 	}
 }
