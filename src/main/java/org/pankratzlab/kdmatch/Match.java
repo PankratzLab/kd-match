@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
  * Holds a sample, and the potential matches (i.e nearest neighbors)
  *
  */
-class Match {
+public class Match {
   Sample sample;
   List<Sample> matches;
   private Set<String> matchIds;
@@ -71,16 +71,30 @@ class Match {
     results.add(sample.getOutput());
 
     for (int i = 0; i < numToSelect; i++) {
-      Sample control = matches.get(i);
-      results.add(Double.toString(getDistanceFrom(control)));
-      results.add(control.ID);
-      for (int j = 0; j < sample.dim.length; j++) {
-        results.add(Double.toString(control.dim[j]));
+      // TODO untested
+      if (matches != null && matches.size() > i) {
+        Sample control = matches.get(i);
+        results.add(control.getID());
+        results.add(Double.toString(getDistanceFrom(control)));
+        for (int j = 0; j < sample.dim.length; j++) {
+          results.add(Double.toString(control.dim[j]));
+        }
+        if (!control.getGroup().equals("")) {
+        	results.add(control.getGroup());
+        } else {
+        	results.add("no_group");
+        }
+      } else {
+        // TODO untested
+    	results.add("no-match");
+        results.add(Double.toString(Double.NaN));
+        for (int j = 0; j < sample.dim.length; j++) {
+          results.add(Double.toString(Double.NaN));
+        }
+        results.add("NA");
       }
-
     }
     results.add(Boolean.toString(hungarian));
-
     return results.toString();
 
   }
