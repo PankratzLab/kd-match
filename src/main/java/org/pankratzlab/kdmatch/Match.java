@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Holds a sample, and the potential matches (i.e nearest neighbors)
- *
  */
 public class Match {
   Sample sample;
@@ -80,13 +80,13 @@ public class Match {
           results.add(Double.toString(control.dim[j]));
         }
         if (!control.getGroup().equals("")) {
-        	results.add(control.getGroup());
+          results.add(control.getGroup());
         } else {
-        	results.add("no_group");
+          results.add("no_group");
         }
       } else {
         // TODO untested
-    	results.add("no-match");
+        results.add("no-match");
         results.add(Double.toString(Double.NaN));
         for (int j = 0; j < sample.dim.length; j++) {
           results.add(Double.toString(Double.NaN));
@@ -96,6 +96,14 @@ public class Match {
     }
     results.add(Boolean.toString(hungarian));
     return results.toString();
+  }
 
+  Stream<String> getStatusFileLines(int numToSelect) {
+    Stream.Builder<String> streamBuilder = Stream.builder();
+    streamBuilder.add(String.join("\t", sample.ID, "1", sample.ID));
+    for (Sample s : this.matches.subList(0, numToSelect)) {
+      streamBuilder.add(String.join("\t", s.ID, "0", sample.ID));
+    }
+    return streamBuilder.build();
   }
 }

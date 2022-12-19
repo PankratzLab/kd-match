@@ -2,6 +2,7 @@ package org.pankratzlab.kdmatch;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -18,7 +19,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.GZIPOutputStream;
 
 public class KDMatch {
 
@@ -35,12 +35,12 @@ public class KDMatch {
   // controls. Note: this portion is multi-threaded within communities (i.e. optimizes within
   // communities of matches that are connected by at least one control)
 
-  private static void run(Path inputFileAnchor, Path inputFileBarns, Path ouputDir,
+  private static void run(Path inputFileAnchor, Path inputFileBarns, Path outputDir,
                           int initialNumSelect, int finalNumSelect, int threads,
                           Logger log) throws IOException, InterruptedException, ExecutionException {
     String[] headerA = Files.lines(inputFileAnchor).findFirst().get().toString().trim().split("\t");
     String[] headerB = Files.lines(inputFileBarns).findFirst().get().toString().trim().split("\t");
-    new File(ouputDir.toString()).mkdirs();
+    new File(outputDir.toString()).mkdirs();
 
     if (Arrays.equals(headerA, headerB)) {
       KDTree<Sample> kdTree = new KDTree<>(headerA.length - 1);// dimension of the data to be
@@ -59,13 +59,16 @@ public class KDMatch {
                                                                       getSampleStreamFromFile(inputFileAnchor),
                                                                       initialNumSelect)
                                        .collect(Collectors.toList());
-      String outputBase = ouputDir + File.separator + "test.match.AllowDups.txt.gz";
+      String outputBase = outputDir + File.separator + "test.match.AllowDups.txt.gz";
 
       log.info("reporting full baseline selection of " + initialNumSelect + " nearest neighbors to "
                + outputBase);
       writeToFile(naiveMatches.stream(), outputBase, headerA, headerB, initialNumSelect);
 
-      String outputOpt = ouputDir + File.separator + "test.match.optimized.txt.gz";
+      String statusBase = outputDir + File.separator + "test.status.AllowDups.txt";
+      writeSampleStatusFile(naiveMatches.stream(), statusBase, initialNumSelect);
+
+      String outputOpt = outputDir + File.separator + "test.match.optimized.txt.gz";
 
       log.info("selecting  " + naiveMatches + " optimized nearest neighbors");
 
@@ -77,6 +80,8 @@ public class KDMatch {
 
       writeToFile(optimizedMatches, outputOpt, headerA, headerB, finalNumSelect);
 
+      String statusOptimized = outputDir + File.separator + "test.status.optimized.txt";
+      writeSampleStatusFile(optimizedMatches, statusOptimized, finalNumSelect);
     }
 
   }
@@ -117,6 +122,14 @@ public class KDMatch {
     }
     header.add("hungarian_selection");
     writer.println(header);
+  }
+
+  public static void writeSampleStatusFile(Stream<Match> matches, String outputFileName, int numToSelect)
+      throws FileNotFoundException {
+    PrintWriter writer = new PrintWriter(new FileOutputStream(outputFileName, true));
+    String header = "id\tstatus\tmatched_case_id";
+    writer.println(header);
+    matches.flatMap(m -> m.getStatusFileLines(numToSelect)).forEach(writer::println);
   }
 
   public static void main(String[] args) {
