@@ -99,6 +99,7 @@ public class Match {
   }
 
   Stream<String> getStatusFileLines(int numToSelect) {
+    numToSelect = Math.min(numToSelect, this.matches.size());
     Stream.Builder<String> streamBuilder = Stream.builder();
     streamBuilder.add(String.join("\t", sample.ID, "1", sample.ID));
     for (Sample s : this.matches.subList(0, numToSelect)) {
