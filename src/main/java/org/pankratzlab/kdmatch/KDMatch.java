@@ -124,12 +124,13 @@ public class KDMatch {
     writer.println(header);
   }
 
-  public static void writeSampleStatusFile(Stream<Match> matches, String outputFileName, int numToSelect)
-      throws FileNotFoundException {
-    PrintWriter writer = new PrintWriter(new FileOutputStream(outputFileName, true));
-    String header = "id\tstatus\tmatched_case_id";
-    writer.println(header);
-    matches.flatMap(m -> m.getStatusFileLines(numToSelect)).forEach(writer::println);
+  public static void writeSampleStatusFile(Stream<Match> matches, String outputFileName,
+                                           int numToSelect) throws FileNotFoundException {
+    try (PrintWriter writer = new PrintWriter(new FileOutputStream(outputFileName, true))) {
+      String header = "id\tstatus\tmatched_case_id";
+      writer.println(header);
+      matches.flatMap(m -> m.getStatusFileLines(numToSelect)).forEach(writer::println);
+    }
   }
 
   public static void main(String[] args) {
