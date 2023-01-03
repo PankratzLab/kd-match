@@ -2,7 +2,6 @@ package org.pankratzlab.kdmatch;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -125,10 +124,13 @@ public class KDMatch {
   }
 
   public static void writeSampleStatusFile(Stream<Match> matches, String outputFileName,
-                                           int numToSelect) throws FileNotFoundException {
+                                           int numToSelect) throws IOException {
     try (PrintWriter writer = new PrintWriter(new FileOutputStream(outputFileName, true))) {
-      String header = "id\tstatus\tmatched_case_id";
-      writer.println(header);
+      BufferedReader br = new BufferedReader(new FileReader(outputFileName));
+      if (br.readLine() == null) {
+        String header = "id\tstatus\tmatched_case_id";
+        writer.println(header);
+      }
       matches.flatMap(m -> m.getStatusFileLines(numToSelect)).forEach(writer::println);
     }
   }
