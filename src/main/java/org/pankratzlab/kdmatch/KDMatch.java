@@ -2,7 +2,6 @@ package org.pankratzlab.kdmatch;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -21,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class KDMatch {
+  public final static String STATUS_FILE_HEADER = "id\tstatus\tmatched_case_id";
 
   // prototype for matching using KD trees(https://en.wikipedia.org/wiki/K-d_tree), with the
   // resolution of duplicate
@@ -125,10 +125,12 @@ public class KDMatch {
   }
 
   public static void writeSampleStatusFile(Stream<Match> matches, String outputFileName,
-                                           int numToSelect) throws FileNotFoundException {
+                                           int numToSelect) throws IOException {
     try (PrintWriter writer = new PrintWriter(new FileOutputStream(outputFileName, true))) {
-      String header = "id\tstatus\tmatched_case_id";
-      writer.println(header);
+      BufferedReader br = new BufferedReader(new FileReader(outputFileName));
+      if (br.readLine() == null) {
+        writer.println(STATUS_FILE_HEADER);
+      }
       matches.flatMap(m -> m.getStatusFileLines(numToSelect)).forEach(writer::println);
     }
   }
