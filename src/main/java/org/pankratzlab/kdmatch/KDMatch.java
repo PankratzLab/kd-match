@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class KDMatch {
+  public final static String STATUS_FILE_HEADER = "id\tstatus\tmatched_case_id";
 
   // prototype for matching using KD trees(https://en.wikipedia.org/wiki/K-d_tree), with the
   // resolution of duplicate
@@ -128,8 +129,7 @@ public class KDMatch {
     try (PrintWriter writer = new PrintWriter(new FileOutputStream(outputFileName, true))) {
       BufferedReader br = new BufferedReader(new FileReader(outputFileName));
       if (br.readLine() == null) {
-        String header = "id\tstatus\tmatched_case_id";
-        writer.println(header);
+        writer.println(STATUS_FILE_HEADER);
       }
       matches.flatMap(m -> m.getStatusFileLines(numToSelect)).forEach(writer::println);
     }
