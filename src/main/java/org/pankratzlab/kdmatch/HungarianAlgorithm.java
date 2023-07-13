@@ -1,6 +1,8 @@
 package org.pankratzlab.kdmatch;
 
 import java.util.Arrays;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 // https://github.com/KevinStern/software-and-algorithms/blob/e51260ec39b37b6cfd754426a683af0841a68ad7/src/main/java/blogspot/software_and_algorithms/stern_library/optimization/HungarianAlgorithm.java/*
 
@@ -54,6 +56,7 @@ class HungarianAlgorithm {
   private final int[] matchJobByWorker, matchWorkerByJob;
   private final int[] parentWorkerByCommittedJob;
   private final boolean[] committedWorkers;
+  private final Logger log;
 
   /**
    * Construct an instance of the algorithm.
@@ -62,11 +65,12 @@ class HungarianAlgorithm {
    *          job j, for all i, j. The cost matrix must not be irregular in the sense that all rows
    *          must be the same length; in addition, all entries must be non-infinite numbers.
    */
-  public HungarianAlgorithm(double[][] costMatrix) {
+  public HungarianAlgorithm(double[][] costMatrix, Logger log) {
     this.dim = Math.max(costMatrix.length, costMatrix[0].length);
     this.rows = costMatrix.length;
     this.cols = costMatrix[0].length;
     this.costMatrix = new double[this.dim][this.dim];
+    this.log = log;
     for (int w = 0; w < this.dim; w++) {
       if (w < costMatrix.length) {
         if (costMatrix[w].length != this.cols) {
@@ -126,15 +130,27 @@ class HungarianAlgorithm {
      * an initial non-zero dual feasible solution and create a greedy matching from workers to jobs
      * of the cost matrix.
      */
+    log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "reduce");
     reduce();
+    log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "computeInitialFeasibleSolution");
     computeInitialFeasibleSolution();
+    log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "greedyMatch");
     greedyMatch();
 
+    log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "fetchUnmatchedWorker");
     int w = fetchUnmatchedWorker();
     while (w < dim) {
+      log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "initializePhase");
+
       initializePhase(w);
+      log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "executePhase");
+
       executePhase();
+      log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "fetchUnmatchedWorker");
       w = fetchUnmatchedWorker();
+      log.log(Level.INFO, "HungarianAlgorithm w val at : {0}", w);
+      log.log(Level.INFO, "HungarianAlgorithm dim val at : {0}", dim);
+
     }
     int[] result = Arrays.copyOf(matchJobByWorker, rows);
     for (w = 0; w < result.length; w++) {

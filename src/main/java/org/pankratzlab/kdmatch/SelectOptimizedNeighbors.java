@@ -50,8 +50,8 @@ public class SelectOptimizedNeighbors {
   }
 
   public static Stream<Match> optimizeDuplicates(List<Match> matches, int numSelect, int threads,
-                                          Logger log) throws InterruptedException,
-                                                      ExecutionException {
+                                                 Logger log) throws InterruptedException,
+                                                             ExecutionException {
 
     log.info("counting occurrences of each control and finding duplicates");
 
@@ -94,8 +94,8 @@ public class SelectOptimizedNeighbors {
 
       // parallel stream invoked here to process each community individually. Threading this way
       // doesn't have a huge benefit (10-20% speedup with 6 threads, 100/10 selection), but helps.
-      communities.parallelStream().map(e -> getOptimizedMatches(e, numSelect)).flatMap(List::stream)
-                 .collect(Collectors.toList())
+      communities.parallelStream().map(e -> getOptimizedMatches(e, numSelect, log))
+                 .flatMap(List::stream).collect(Collectors.toList())
 
       ).get();
 
@@ -110,7 +110,7 @@ public class SelectOptimizedNeighbors {
   }
 
   private static List<Match> getOptimizedMatches(final List<Match> matchesWithDuplicates,
-                                                 int numSelect) {
+                                                 int numSelect, Logger log) {
     // Extract all unique control Samples that are matched to at least two cases
     List<Sample> allUniqueControls = matchesWithDuplicates.stream().map(Match::getMatches)
                                                           .flatMap(Collection::stream)
@@ -146,7 +146,7 @@ public class SelectOptimizedNeighbors {
       }
     }
 
-    int[] selections = new HungarianAlgorithm(costMatrix).execute();
+    int[] selections = new HungarianAlgorithm(costMatrix, log).execute();
     // initialize new optimized matches
     List<Match> optimizedMatches = new ArrayList<>(matchesWithDuplicates.size());
     matchesWithDuplicates.stream().map(d -> new Match(d.sample, new ArrayList<>()))
