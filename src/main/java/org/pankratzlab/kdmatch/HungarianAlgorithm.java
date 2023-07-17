@@ -140,16 +140,12 @@ class HungarianAlgorithm {
     log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "fetchUnmatchedWorker");
     int w = fetchUnmatchedWorker();
     while (w < dim) {
-      log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "initializePhase");
-
       initializePhase(w);
-      log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "executePhase");
-
       executePhase();
-      log.log(Level.INFO, "HungarianAlgorithm execution step: {0}", "fetchUnmatchedWorker");
       w = fetchUnmatchedWorker();
-      log.log(Level.INFO, "HungarianAlgorithm w val at : {0}", w);
-      log.log(Level.INFO, "HungarianAlgorithm dim val at : {0}", dim);
+
+      log.log(Level.INFO, "HungarianAlgorithm w val at {0}; dim at {1}; prop at {2}",
+              new Object[] {w, dim, (double) w / dim});
 
     }
     int[] result = Arrays.copyOf(matchJobByWorker, rows);
